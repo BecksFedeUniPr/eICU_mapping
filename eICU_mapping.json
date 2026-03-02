@@ -1,0 +1,78 @@
+{
+  "mapping_metadata": {
+    "source_dataset": "eICU",
+    "target_model": "Backbone"
+  },
+  "nodes": {
+    "Patient": {
+      "source_reference": "uniquepid",
+      "properties": ["age", "gender", "ethnicity"]
+    },
+    "Encounter": {
+      "source_reference": "patienthealthsystemstayid",
+      "concept_id":"None",
+      "concept_label":"None",
+      "type": "encounter",
+      "temporal": {
+        "start_time": "hospitaladmittime24 + hospitaladmitoffset",
+        "end_time": "hospitaldischargetime24 + hospitaldischargeoffset" 
+      },
+      "payload": ["admissionheight","admissionweight", "dischargeweight","hospitaladmitsource","hospitaldischargeyear","hospitaldischargestatus","hospitaldischargelocation"]
+    },
+    "Encounter_Segment": {
+      "source_reference": "patientunitstayid",
+      "type": "encounter_segment",
+      "concept_id": "None",
+      "concept_label": "None",
+      "start_time": "unitadmittime24",
+      "end_time": "unitdischargetime24 + unitdiscargeoffset",
+      "unit_visit_number":"unitvisitnumber",
+      "unittype": "unittype",
+      "payload": ["unitadmitsource", "unitstaytype", "unitdischargelocation", "unitdischargestatus", "apache_dissimions"]
+    },
+    "Location_Hospital": {
+      "source_reference": "HOSP_{hospitalid}"
+    },
+    "Location_Ward": {
+      "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
+    }
+  },
+  "relationships": [
+    {
+      "from": "Patient",
+      "to": "Encounter",
+      "type": "HAS_EVENT",
+      "join_key": {
+        "from_field": "uniquepid",
+        "to_field": "patienthealthsystemstayid"
+      }
+    },
+    {
+      "from": "Encounter",
+      "to": "Encounter_Segment",
+      "type": "HAS_SEGMENT",
+      "join_key": {
+        "from_field": "patienthealthsystemstayid",
+        "to_field": "patientunitstayid"
+      }
+    },
+    {
+      "from": "Encounter",
+      "to": "Location_Hospital",
+      "type": "HAS_LOCATION",
+      "join_key": {
+        "from_field": "patienthealthsystemstayid",
+        "to_field": "HOSP_{hospitalid}"
+      }
+    },
+    {
+      "from": "Encounter_Segment",
+      "to": "Location_Ward",
+      "type": "HAS_LOCATION",
+      "join_key": {
+        "from_field": "patientunitstayid",
+        "to_field": "HOSP_{hospitalid}_Ward_{wardid}"
+      }
+    }
+  ]
+}
