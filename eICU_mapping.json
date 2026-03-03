@@ -12,7 +12,8 @@
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
-            "concept_label": "Hospital Stay",
+            "concept_id": "None",
+            "concept_label": "None",
             "type": "encounter",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
