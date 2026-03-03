@@ -25,35 +25,95 @@ project-root/
 ## E-R Diagram
 
 ```mermaid
-graph TD
-    PAT["🧑 Patient\n──────\nsource_ref: uniquepid\nage · gender · ethnicity"]
-    ENC["🏥 Encounter\n──────\nsource_ref: patienthealthsystemstayid\nstart_time · end_time"]
-    SEG["🛏️ Encounter_Segment\n──────\nsource_ref: patientunitstayid\nstart_time · end_time\nunittype · unitstaytype"]
-    HADM["📥 HospitalAdmission\n──────\nstart_time\nhospitaladmitsource\nadmissionheight · admissionweight"]
-    HDIS["📤 HospitalDischarge\n──────\ntimestamp\nhospitaldischargestatus\nhospitaldischargelocation"]
-    ICUA["🚨 ICU_Admit\n──────\ntimestamp\nunitadmitsource · unittype"]
-    ICUD["🔔 ICU_Discharge\n──────\ntimestamp\nunitadmitsource · unittype"]
-    LHOSP["📍 Location_Hospital\n──────\nsource_ref: HOSP_{hospitalid}"]
-    LWARD["📍 Location_Ward\n──────\nsource_ref: HOSP_{hospitalid}_Ward_{wardid}"]
-    LADM["📍 Location_admit_discharge\n──────\nhospitaladmitsource\nhospitaldischargelocation"]
+classDiagram
+    direction TB
+    
+    class Patient {
+        +uniquepid
+        +age
+        +gender
+        +ethnicity
+    }
 
-    PAT -->|HAS_EVENT| ENC
-    PAT -->|HAS_ENCOUNTER_SEGMENT| SEG
+    class Encounter {
+        +patienthealthsystemstayid
+        +start_time
+        +end_time
+        +type
+    }
 
-    ENC -->|HAS_SEGMENT| SEG
-    ENC -->|HAS_LOCATION| LHOSP
-    ENC -->|HAS_Hospital_ADMISSION| HADM
-    ENC -->|HAS_Hospital_DISMISSION| HDIS
+    class Encounter_Segment {
+        +patientunitstayid
+        +unit_visit_number
+        +start_time
+        +end_time
+        +unitstaytype
+        +unittype
+    }
 
-    SEG -->|HAS_LOCATION| LWARD
-    SEG -->|HAS_ICU_ADMISSION| ICUA
-    SEG -->|HAS_ICU_DISMISSION| ICUD
+    class HospitalAdmission {
+        +source_reference
+        +start_time
+        +hospitaladmitsource
+        +admissionheight
+        +admissionweight
+    }
 
-    ICUA -->|HAS_LOCATION| LWARD
-    ICUD -->|HAS_LOCATION| LWARD
+    class HospitalDischarge {
+        +source_reference
+        +timestamp
+        +hospitaldischargestatus
+        +hospitaldischargelocation
+        +hospitaldischargeyear
+        +dischargeweight
+    }
 
-    HADM -->|HAS_LOCATION| LADM
-    HDIS -->|HAS_LOCATION| LADM
+    class ICU_Admit {
+        +source_reference
+        +timestamp
+        +unitadmitsource
+        +unittype
+        +unitstaytype
+    }
+
+    class ICU_Discharge {
+        +source_reference
+        +timestamp
+        +unitdischargelocation
+        +unitdischargestatus
+    }
+
+    class Location_Hospital {
+        +HOSP_hospitalid
+    }
+
+    class Location_Ward {
+        +HOSP_hospitalid_Ward_wardid
+    }
+
+    class Location_admit_discharge {
+        +hospitaladmitsource_or_discharge
+    }
+
+    %% Relationships (Esattamente come nel tuo JSON)
+    Patient --> Encounter : HAS_EVENT
+    Patient --> Encounter_Segment : HAS_ENCOUNTER_SEGMENT
+    Encounter --> Encounter_Segment : HAS_SEGMENT
+    
+    Encounter --> HospitalAdmission : HAS_Hospital_ADMISSION
+    Encounter --> HospitalDischarge : HAS_Hospital_DISMISSION
+    
+    Encounter_Segment --> ICU_Admit : HAS_ICU_ADMISSION
+    Encounter_Segment --> ICU_Discharge : HAS_ICU_DISMISSION
+    
+    Encounter --> Location_Hospital : HAS_LOCATION
+    Encounter_Segment --> Location_Ward : HAS_LOCATION
+    
+    ICU_Admit --> Location_Ward : HAS_LOCATION
+    ICU_Discharge --> Location_Ward : HAS_LOCATION
+    
+    HospitalAdmission --> Location_admit_discharge : HAS_LOCATION
+    HospitalDischarge --> Location_admit_discharge : HAS_LOCATION
 ```
 
 ---
