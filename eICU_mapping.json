@@ -88,7 +88,6 @@
             "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
         },
         "Location_admit_discharge_Hospital_and_": { 
-            // BECAUSE THE PATIENTS COULD BE MOVE IN AND OUT BETWEEN Differents Location and i think that //
             "source_reference": "hospitaladmitsource or hospitaldischargelocation or unitdischargelocation or unitadmitsource"
         }
     },
@@ -194,10 +193,3 @@
         }
     ]
 }
-/*
-mimic-omop etl pipelies
-MIMIC-to-omop
-ETL = EXTRACT TRANSORM LOAD
-
-CODE FOR THE STUDENTS ; NOTICIES SOON! ON APRIL!
-*/
