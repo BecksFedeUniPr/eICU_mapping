@@ -2,15 +2,16 @@ import pandas as pd
 import json
 import numpy as np
 import re
+import os
 from collections import defaultdict
 from neo4j import GraphDatabase
 from datetime import datetime, timedelta
 
-# GOAL: load patient.csv fully driven by eICU_mapping.json (nodes + relationships)
+# GOAL: load patient.csv fully driven by mapping.json (nodes + relationships)
 
-URI = "neo4j://localhost:7687"
-USER = "neo4j"
-PASSWORD = "Mediverse"
+URI      = os.getenv("NEO4J_URI",      "neo4j://localhost:7687")
+USER     = os.getenv("NEO4J_USER",     "neo4j")
+PASSWORD = os.getenv("NEO4J_PASSWORD", "Mediverse")
 
 # Unique prefix per node type to avoid source_reference collisions
 # (e.g. Encounter and HospitalAdmission both reference patienthealthsystemstayid)
@@ -98,7 +99,7 @@ def load_and_prep_data(csv_path, mapping_config):
     Read the CSV and build, for each row:
       - one dict per node type (with source_reference, properties, payload, timestamps)
       - one list of relationships (from_ref, to_ref, type)
-    Everything is driven by eICU_mapping.json.
+    Everything is driven by mapping.json.
     """
     print("Reading CSV file...")
     df = pd.read_csv(csv_path)
@@ -233,8 +234,8 @@ def setup_constraints(tx, mapping_config):
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
-    csv_file     = "patient.csv"
-    mapping_file = "eICU_mapping.json"
+    csv_file     = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
+    mapping_file = os.getenv("MAPPING_FILE", "mapping.json")
 
     mapping_config = load_mapping_config(mapping_file)
     print(f"Loaded mapping : {mapping_config['mapping_metadata']}")
@@ -267,7 +268,7 @@ if __name__ == "__main__":
             print(f"✅ Processed {min(i + BATCH_SIZE, total_rows)}/{total_rows} rows")
 
     driver.close()
-    print("Done! Graph fully loaded from eICU_mapping.json 🚀")
+    print("Done! Graph fully loaded from mapping.json 🚀")
 
 
 URI = "neo4j://localhost:7687"
@@ -317,7 +318,7 @@ def load_and_prep_data(csv_path, mapping_config):
     df = pd.read_csv(csv_path)
     df = df.replace({np.nan: None})
     
-    print("Mapping data according to eICU_mapping.json...")
+    print("Mapping data according to mapping.json...")
     records = []
     
     for _, row in df.iterrows():
@@ -436,8 +437,8 @@ def setup_constraints(tx):
         tx.run(q)
 
 if __name__ == "__main__":
-    csv_file = "patient.csv"
-    mapping_file = "eICU_mapping.json"
+    csv_file = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
+    mapping_file = os.getenv("MAPPING_FILE", "mapping.json")
     
     # Load mapping configuration
     mapping_config = load_mapping_config(mapping_file)

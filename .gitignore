@@ -1,3 +1,4 @@
-patient.csv
+neo4j/import/patient.csv
 venv/*
 .DS_Store
+notes.txt
