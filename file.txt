@@ -1,13 +1,10 @@
-    // HOSPITAL like an event!
-    // HOSPITAL like 
+    // ✅ COMPLETED: HOSPITAL as event entities (HospitalAdmission, HospitalDischarge)
+// ✅ COMPLETED: LOCATION ENTITIES with proper ID creation and linking
+// ✅ COMPLETED: HAS_LOCATION relationships for Hospital and ICU levels
+// ✅ COMPLETED: ICU_Admit and ICU_Discharge with proper location linking
+// ✅ COMPLETED: Patient -> Encounter_Segment direct relationship (HAS_ENCOUNTER_SEGMENT)
 
-    //LOCATION ENTIES FROM LOCATION.
-    CREATE MY ID ; AND MAKE SURE THEY ARE LINKED 
-    // HAS LOCATION BUTTACI
-
-    // DISMIT SOURCE ICU ; collega il nodo discharge allo stesso della hospital_stay
-
-    // LOCAL
+// TODO: Remaining tasks
 
     //CATEGORIAL DEFINITIONS HOW TO DETERMINE IF A COLUMS IS CATEGORIAL
     //IDENTIFY THE COLUMS that are categorigal

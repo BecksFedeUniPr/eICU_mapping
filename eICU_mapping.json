@@ -27,7 +27,7 @@
             "start_time": "unitadmittime24",
             "end_time": "unitdischargetime24 + unitdiscargeoffset",
             "unit_visit_number": "unitvisitnumber",
-            "payload": [
+            "payload": [    
                 "unitstaytype",
                 "unittype"
             ]
