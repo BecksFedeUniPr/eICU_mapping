@@ -26,8 +26,8 @@
             "concept_label": "None",
             "start_time": "unitadmittime24",
             "end_time": "unitdischargetime24 + unitdiscargeoffset",
-            "unit_visit_number": "unitvisitnumber",
             "payload": [    
+                "unit_visit_number",
                 "unitstaytype",
                 "unittype"
             ]
@@ -70,14 +70,15 @@
             ]
         },
         "ICU_Discharge": {
-            "type": "event",
+           "type": "event",
             "source_reference": "patientunitstayid",
             "concept_label": "None",
             "concept_id" :"None",
-            "timestamp": "unitdischargetime24 + unitdischargeoffset",
+            "timestamp": "unitadmittime24",
             "payload": [
-                "unitdischargelocation",
-                "unitdischargestatus"
+                "unitadmitsource",
+                "unittype",
+                "unitstaytype"
             ]
         },
         "Location_Hospital": {
