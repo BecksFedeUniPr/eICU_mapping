@@ -1,0 +1,21 @@
+    // HOSPITAL like an event!
+    // HOSPITAL like 
+
+    //LOCATION ENTIES FROM LOCATION.
+    CREATE MY ID ; AND MAKE SURE THEY ARE LINKED 
+    // HAS LOCATION BUTTACI
+
+    // DISMIT SOURCE ICU ; collega il nodo discharge allo stesso della hospital_stay
+
+    // LOCAL
+
+    //CATEGORIAL DEFINITIONS HOW TO DETERMINE IF A COLUMS IS CATEGORIAL
+    //IDENTIFY THE COLUMS that are categorigal
+    //every value categorial colums create an NODE
+    //CREATE THE NEW RELANSTHIOP HAS_ECOUNTER DECIDE YOU.
+
+
+    // CREATE LOCAL_CONCEPT ;  FOR ENTITY AND PATIENTS
+    // SO IT's CHEAP!
+
+    //CREATE RELANSTHIOP PATIENT TO ENCOUNTER_SEGMENT

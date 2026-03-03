@@ -155,6 +155,7 @@ def create_graph(tx, batch):
     MERGE (p)-[:has_event]->(enc)
     MERGE (p)-[:has_event]->(seg)
 
+    //LOAD_THE_RELATIONSHIP FROM JSON FILE
     // 6. Explicit Links to Location
     MERGE (enc)-[:has_location]->(loc_hosp)
     MERGE (seg)-[:has_location]->(loc_ward)
