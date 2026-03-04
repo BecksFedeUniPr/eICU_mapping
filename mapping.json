@@ -88,8 +88,8 @@
             "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
         },
         
-        "Location_admit_discharge_Hospital_and_": { 
-            "source_reference": "hospitaladmitsource or hospitaldischargelocation or unitdischargelocation or unitadmitsource"
+        "Location_admit_discharge": { 
+            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"]
         }
     },
     "relationships": [

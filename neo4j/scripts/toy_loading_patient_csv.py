@@ -90,6 +90,34 @@ def get_node_source_ref(node_name, node_def, row):
     prefix = NODE_PREFIX.get(node_name, node_name[:3].upper())
     return f"{prefix}_{resolved}"
 
+def is_multi_source(node_def):
+    """True for categorical location nodes that use source_reference_fields."""
+    return 'source_reference_fields' in node_def
+
+def get_multi_source_nodes(node_name, node_def, row):
+    """
+    For categorical nodes (e.g. Location_admit_discharge):
+    create one node dict per source field that has a non-null value in this row.
+    e.g. hospitaladmitsource='Emergency Department' -> LADM_Emergency Department
+    """
+    prefix = NODE_PREFIX.get(node_name, node_name[:3].upper())
+    nodes = []
+    for field in node_def['source_reference_fields']:
+        val = row.get(field)
+        if val is not None:
+            nodes.append({
+                "source_reference": f"{prefix}_{val}",
+                "label": str(val)
+            })
+    return nodes
+
+def get_multi_source_ref(node_name, field_value):
+    """Build the source_reference for a multi-source node from a single field value."""
+    if field_value is None:
+        return None
+    prefix = NODE_PREFIX.get(node_name, node_name[:3].upper())
+    return f"{prefix}_{field_value}"
+
 # ─────────────────────────────────────────────
 # DATA PREPARATION  (driven by mapping JSON)
 # ─────────────────────────────────────────────
@@ -105,8 +133,8 @@ def load_and_prep_data(csv_path, mapping_config):
     df = pd.read_csv(csv_path)
     df = df.replace({np.nan: None})
 
-    nodes_map   = mapping_config['nodes']
-    rel_defs    = mapping_config['relationships']
+    nodes_map = mapping_config['nodes']
+    rel_defs  = mapping_config['relationships']
 
     print(f"Mapping: {len(nodes_map)} node types | {len(rel_defs)} relationship types")
 
@@ -127,6 +155,14 @@ def load_and_prep_data(csv_path, mapping_config):
 
         # ── Build node data from mapping ──
         for node_name, node_def in nodes_map.items():
+
+            # Categorical / multi-source nodes (e.g. Location_admit_discharge)
+            if is_multi_source(node_def):
+                multi_nodes = get_multi_source_nodes(node_name, node_def, row)
+                if multi_nodes:
+                    record[node_name] = multi_nodes  # list of node dicts
+                continue
+
             src_ref = get_node_source_ref(node_name, node_def, row)
             if src_ref is None:
                 continue
@@ -166,8 +202,17 @@ def load_and_prep_data(csv_path, mapping_config):
             to_def    = nodes_map.get(to_name)
             if from_def is None or to_def is None:
                 continue
+
             from_ref = get_node_source_ref(from_name, from_def, row)
-            to_ref   = get_node_source_ref(to_name,   to_def,   row)
+
+            if is_multi_source(to_def):
+                # join_key is the CSV field whose value IS the target node
+                join_key    = rel.get('join_key')
+                field_value = row.get(join_key) if isinstance(join_key, str) else None
+                to_ref      = get_multi_source_ref(to_name, field_value)
+            else:
+                to_ref = get_node_source_ref(to_name, to_def, row)
+
             if from_ref and to_ref:
                 rel_list.append({
                     "from_label": from_name,
@@ -190,7 +235,15 @@ def load_and_prep_data(csv_path, mapping_config):
 
 def create_nodes_tx(tx, batch, node_label):
     """Batch-MERGE all nodes of a given label"""
-    node_batch = [rec[node_label] for rec in batch if node_label in rec]
+    node_batch = []
+    for rec in batch:
+        entry = rec.get(node_label)
+        if entry is None:
+            continue
+        if isinstance(entry, list):   # multi-source node (e.g. Location_admit_discharge)
+            node_batch.extend(entry)
+        else:
+            node_batch.append(entry)
     if not node_batch:
         return
     query = f"""
@@ -234,7 +287,7 @@ def setup_constraints(tx, mapping_config):
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
-    csv_file     = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
+    csv_file     = os.getenv("CSV_FILE",     "/data/patient.csv")
     mapping_file = os.getenv("MAPPING_FILE", "mapping.json")
 
     mapping_config = load_mapping_config(mapping_file)
@@ -246,8 +299,8 @@ if __name__ == "__main__":
     total_rows = len(data)
     print(f"Records ready  : {total_rows}")
 
-    BATCH_SIZE   = 5000
-    node_labels  = list(mapping_config['nodes'].keys())
+    BATCH_SIZE  = 5000
+    node_labels = list(mapping_config['nodes'].keys())
 
     driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
     with driver.session() as session:
@@ -269,194 +322,3 @@ if __name__ == "__main__":
 
     driver.close()
     print("Done! Graph fully loaded from mapping.json 🚀")
-
-
-URI = "neo4j://localhost:7687"
-USER = "neo4j"
-PASSWORD = "Mediverse"
-
-def load_mapping_config(mapping_path):
-    """Load the mapping JSON file"""
-    with open(mapping_path, 'r') as f:
-        return json.load(f)
-
-def parse_time_with_offset(time_24h, offset_minutes):
-    """
-    Calculate the correct timestamp considering the offset in minutes.
-    time_24h: string in HH:MM:SS format
-    offset_minutes: offset in minutes (can be negative)
-    Returns: ISO timestamp string
-    """
-    if pd.isna(time_24h) or time_24h is None:
-        return None
-    
-    try:
-        # Parse time as if it were today
-        base_time = datetime.strptime(str(time_24h), '%H:%M:%S')
-        
-        # Add offset if present
-        if not pd.isna(offset_minutes) and offset_minutes is not None:
-            base_time = base_time + timedelta(minutes=int(offset_minutes))
-        
-        return base_time.isoformat()
-    except Exception as e:
-        print(f"Error parsing time {time_24h} with offset {offset_minutes}: {e}")
-        return None
-
-def build_payload(row, field_list):
-    """Build the JSON payload from specified fields"""
-    payload = {}
-    for field in field_list:
-        value = row.get(field)
-        if not pd.isna(value) and value is not None:
-            payload[field] = value
-    return json.dumps(payload) if payload else None
-
-def load_and_prep_data(csv_path, mapping_config):
-    """Prepare data according to the JSON mapping"""
-    print("Reading CSV file...")
-    df = pd.read_csv(csv_path)
-    df = df.replace({np.nan: None})
-    
-    print("Mapping data according to mapping.json...")
-    records = []
-    
-    for _, row in df.iterrows():
-        # Calculate timestamp with offset for Encounter
-        enc_start = parse_time_with_offset(
-            row.get('hospitaladmittime24'), 
-            row.get('hospitaladmitoffset')
-        )
-        enc_end = parse_time_with_offset(
-            row.get('hospitaldischargetime24'), 
-            row.get('hospitaldischargeoffset')
-        )
-        
-        # Calculate timestamp with offset for Encounter_Segment
-        seg_start = parse_time_with_offset(
-            row.get('unitadmittime24'),
-            0  # No offset specified in mapping for unit admit
-        )
-        seg_end = parse_time_with_offset(
-            row.get('unitdischargetime24'),
-            row.get('unitdischargeoffset')
-        )
-        
-        # Build payloads according to mapping
-        encounter_payload = build_payload(row, [
-            "admissionheight", "admissionweight", "dischargeweight",
-            "hospitaladmitsource", "hospitaldischargeyear",
-            "hospitaldischargestatus", "hospitaldischargelocation"
-        ])
-        
-        segment_payload = build_payload(row, [
-            "unitadmitsource", "unitstaytype", "unitdischargelocation",
-            "unitdischargestatus", "apache_dissimions"
-        ])
-        
-        record = {
-            # Patient
-            "patient_ref": str(row['uniquepid']),
-            "age": row.get('age'),
-            "gender": row.get('gender'),
-            "ethnicity": row.get('ethnicity'),
-            
-            # Encounter
-            "encounter_ref": str(row['patienthealthsystemstayid']),
-            "encounter_start": enc_start,
-            "encounter_end": enc_end,
-            "encounter_payload": encounter_payload,
-            
-            # Encounter_Segment
-            "segment_ref": str(row['patientunitstayid']),
-            "segment_start": seg_start,
-            "segment_end": seg_end,
-            "segment_unittype": row.get('unittype'),
-            "segment_unitvisitnumber": row.get('unitvisitnumber'),
-            "segment_payload": segment_payload,
-            "segment_label": row.get('apacheadmissiondx') or "Unknown",
-            
-            # Locations
-            "hospital_ref": f"HOSP_{row['hospitalid']}",
-            "ward_ref": f"HOSP_{row['hospitalid']}_Ward_{row['wardid']}"
-        }
-        records.append(record)
-    
-    return records
-
-def create_graph(tx, batch):
-    # Use separate MERGEs for nodes and then link them specifically
-    # This prevents Neo4j from "recycling" wrong relationships
-    query = """
-    UNWIND $batch AS row
-    
-    // 1. Create Patient Nodes
-    MERGE (p:Patient {source_reference: row.patient_ref})
-    ON CREATE SET p.gender = row.gender, p.age = row.age, p.ethnicity = row.ethnicity
-    
-    // 2. Create Location Nodes (Hospital and Ward distinct)
-    MERGE (loc_hosp:Location {source_reference: row.hospital_ref})
-    MERGE (loc_ward:Location {source_reference: row.ward_ref})
-    
-    // 3. Create Encounter Event (Hospital)
-    MERGE (enc:Event {source_reference: row.encounter_ref})
-    ON CREATE SET enc.type = 'encounter',
-                  enc.concept_label = 'Hospital Stay',
-                  enc.start_time = row.encounter_start, 
-                  enc.end_time = row.encounter_end, 
-                  enc.payload = row.encounter_payload
-    
-    // 4. Create Segment Event (ICU)
-    MERGE (seg:Event {source_reference: row.segment_ref})
-    ON CREATE SET seg.type = 'encounter_segment', 
-                  seg.concept_label = row.segment_label,
-                  seg.start_time = row.segment_start, 
-                  seg.end_time = row.segment_end, 
-                  seg.payload = row.segment_payload,
-                  seg.unittype = row.segment_unittype,
-                  seg.unitvisitnumber = row.segment_unitvisitnumber
-
-    // 5. Explicit Links (Has_Event)
-    MERGE (p)-[:has_event]->(enc)
-    MERGE (p)-[:has_event]->(seg)
-
-    //LOAD_THE_RELATIONSHIP FROM JSON FILE
-    // 6. Explicit Links to Location
-    MERGE (enc)-[:has_location]->(loc_hosp)
-    MERGE (seg)-[:has_location]->(loc_ward)
-    """
-    tx.run(query, batch=batch)
-
-def setup_constraints(tx):
-    queries = [
-        "CREATE CONSTRAINT patient_ref IF NOT EXISTS FOR (p:Patient) REQUIRE p.source_reference IS UNIQUE;",
-        "CREATE CONSTRAINT event_ref IF NOT EXISTS FOR (e:Event) REQUIRE e.source_reference IS UNIQUE;",
-        "CREATE CONSTRAINT loc_ref IF NOT EXISTS FOR (l:Location) REQUIRE l.source_reference IS UNIQUE;"
-    ]
-    for q in queries:
-        tx.run(q)
-
-if __name__ == "__main__":
-    csv_file = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
-    mapping_file = os.getenv("MAPPING_FILE", "mapping.json")
-    
-    # Load mapping configuration
-    mapping_config = load_mapping_config(mapping_file)
-    print(f"Loaded mapping config: {mapping_config['mapping_metadata']}")
-    
-    # Prepare data
-    data = load_and_prep_data(csv_file, mapping_config)
-    total_rows = len(data)
-    print("Number of records: ", total_rows)
-    BATCH_SIZE = 5000
-    
-    driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))   
-    with driver.session() as session:
-        session.execute_write(setup_constraints)
-        # BATCH_SIZE is necessary 'cause the loading process has a strict limit of RAM Space Source: test on my PC
-        for i in range(0, total_rows, BATCH_SIZE):
-            chunk = data[i : i + BATCH_SIZE]
-            session.execute_write(create_graph, chunk)
-            print(f"✅ Processed {min(i + BATCH_SIZE, total_rows)}/{total_rows} rows")
-    driver.close()
-    print("Done! Now the Locations are correctly separated. 🚀")
