@@ -104,7 +104,7 @@
         {
             "from": "Patient",
             "to": "Encounter",
-            "type": "HAS_EVENT",
+            "type": "HAS_ENCOUNTER",
             "join_key": {
                 "from_field": "uniquepid",
                 "to_field": "patienthealthsystemstayid"
@@ -149,25 +149,25 @@
         {
             "from": "Encounter",
             "to": "HospitalAdmission",
-            "type": "HAS_EVENT",
+            "type": "HAS_HOSPITAL_ADMISSION",
             "join_key": "patienthealthsystemstayid"
         },
         {
             "from": "Encounter",
             "to": "HospitalDischarge",
-            "type": "HAS_EVENT",
+            "type": "HAS_HOSPITAL_DISCHARGE",
             "join_key": "patienthealthsystemstayid"
         },
         {
             "from": "Encounter_Segment",
             "to": "ICU_Admit",
-            "type": "HAS_EVENT",
+            "type": "HAS_ICU_ADMISSION",
             "join_key": "patientunitstayid"
         },
         {
             "from": "Encounter_Segment",
             "to": "ICU_Discharge",
-            "type": "HAS_EVENT",
+            "type": "HAS_ICU_DISCHARGE",
             "join_key": "patientunitstayid"
         },
         {
