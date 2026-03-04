@@ -348,6 +348,31 @@ def create_local_concepts_tx(tx, mapping_config):
     ON CREATE SET lc += c
     """, concepts=concepts)
 
+def cleanup_stale_relationships(session, mapping_config):
+    """
+    Delete any relationship types that exist in Neo4j but are no longer
+    defined in the current mapping (stale types from previous mapping versions).
+    """
+    # All valid types: mapping-defined + hardcoded HAS_CONCEPT
+    valid_types = {r['type'] for r in mapping_config['relationships']}
+    valid_types.add('HAS_CONCEPT')
+
+    existing = session.run(
+        "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
+    ).data()
+    existing_types = {r['relationshipType'] for r in existing}
+
+    stale = existing_types - valid_types
+    if not stale:
+        print("✅ No stale relationship types found")
+        return
+
+    for rel_type in stale:
+        print(f"  🗑️  Removing stale relationship type: {rel_type}")
+        session.run(f"MATCH ()-[r:`{rel_type}`]->() DELETE r")
+    print(f"✅ Removed {len(stale)} stale relationship type(s): {stale}")
+
+
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
@@ -370,6 +395,9 @@ if __name__ == "__main__":
 
     driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
     with driver.session() as session:
+
+        print("🧹 Cleaning up stale relationship types...")
+        cleanup_stale_relationships(session, mapping_config)
 
         session.execute_write(setup_constraints, mapping_config)
         print("✅ Constraints created")
