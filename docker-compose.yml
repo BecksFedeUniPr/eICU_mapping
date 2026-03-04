@@ -42,7 +42,7 @@ services:
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=Mediverse
       - CSV_FILE=/data/patient.csv
-      - MAPPING_FILE=/app/mapping.json
+      - MAPPING_FILE=mapping.json
     volumes:
       - ./neo4j/import:/data        # place patient.csv here before running
     restart: "no"
