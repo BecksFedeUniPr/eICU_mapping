@@ -149,25 +149,25 @@
         {
             "from": "Encounter",
             "to": "HospitalAdmission",
-            "type": "HAS_Hospital_ADMISSION",
+            "type": "HAS_EVENT",
             "join_key": "patienthealthsystemstayid"
         },
         {
             "from": "Encounter",
             "to": "HospitalDischarge",
-            "type": "HAS_Hospital_DISMISSION",
+            "type": "HAS_EVENT",
             "join_key": "patienthealthsystemstayid"
         },
         {
             "from": "Encounter_Segment",
             "to": "ICU_Admit",
-            "type": "HAS_ICU_ADMISSION",
+            "type": "HAS_EVENT",
             "join_key": "patientunitstayid"
         },
         {
             "from": "Encounter_Segment",
             "to": "ICU_Discharge",
-            "type": "HAS_ICU_DISMISSION",
+            "type": "HAS_EVENT",
             "join_key": "patientunitstayid"
         },
         {

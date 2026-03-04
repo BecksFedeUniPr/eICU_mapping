@@ -100,11 +100,11 @@ classDiagram
     Patient --> Encounter_Segment : HAS_ENCOUNTER_SEGMENT
     Encounter --> Encounter_Segment : HAS_SEGMENT
     
-    Encounter --> HospitalAdmission : HAS_Hospital_ADMISSION
-    Encounter --> HospitalDischarge : HAS_Hospital_DISMISSION
+    Encounter --> HospitalAdmission : HAS_EVENT
+    Encounter --> HospitalDischarge : HAS_EVENT
     
-    Encounter_Segment --> ICU_Admit : HAS_ICU_ADMISSION
-    Encounter_Segment --> ICU_Discharge : HAS_ICU_DISMISSION
+    Encounter_Segment --> ICU_Admit : HAS_EVENT
+    Encounter_Segment --> ICU_Discharge : HAS_EVENT
     
     Encounter --> Location_Hospital : HAS_LOCATION
     Encounter_Segment --> Location_Ward : HAS_LOCATION
