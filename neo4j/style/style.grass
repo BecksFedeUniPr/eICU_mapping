@@ -1,0 +1,38 @@
+node.Location_admit_discharge { color: #ddf4ca; size: 25px; }
+node.Location_Ward { color: #f4b2ff; size: 25px; }
+node.Location_Hospital { color: #00c4a8; size: 25px; }
+node.ICU_Discharge { color: #95b3ff; size: 25px; }
+node.ICU_Admit { color: #c4d018; size: 25px; }
+node.HospitalDischarge { color: #92f0f7; size: 25px; }
+node.HospitalAdmission { color: #ffc3c2; size: 25px; }
+node.Encounter_Segment { color: #00f5fe; size: 25px; }
+node.Encounter { color: #ffcfff; size: 25px; }
+node.Patient { color: #c5aa7b; size: 25px; caption: "{source_reference}"; }
+node.Location { color: #efbbe3; size: 25px; }
+node.Event { color: #b5e6fe; size: 25px; caption: "{type}"; }
+node.patient { color: #00d7ff; size: 25px; }
+node.Location_admit_discharge_Hospital_and_ { color: #afd9ea; size: 25px; }
+
+relationship.has_event { width: 2px; color: #8DCC93; }
+relationship.has_location { width: 2px; color: #F79767; }
+relationship.HAS_EVENT { width: 2px; color: #57C7E3; }
+relationship.HAS_ENCOUNTER_SEGMENT { width: 2px; color: #FFE081; }
+
+/* Colore Grigio ELIMINATO: diamo vita al flusso! */
+
+relationship.HAS_SEGMENT { width: 2px; color: #4C92E3; } 
+relationship.HAS_LOCATION { width: 2px; color: #EB64AD; }
+
+/* AMMISSIONI: Colore Verde/Giallo (Ingresso) */
+relationship.HAS_Hospital_ADMISSION {
+  color: #00E676;
+  width: 3px;
+}
+relationship.HAS_ICU_ADMISSION { width: 3px; color: #C6FF00; }
+
+/* DIMISSIONI: Colore Rosso/Arancio (Uscita) */
+relationship.HAS_Hospital_DISMISSION {
+  color: #FF9100;
+  width: 3px;
+}
+relationship.HAS_ICU_DISMISSION { width: 3px; color: #FFAB40; }
