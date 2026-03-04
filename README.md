@@ -109,8 +109,8 @@ classDiagram
     Encounter --> Location_Hospital : HAS_LOCATION
     Encounter_Segment --> Location_Ward : HAS_LOCATION
     
-    ICU_Admit --> Location_Ward : HAS_LOCATION
-    ICU_Discharge --> Location_Ward : HAS_LOCATION
+    ICU_Admit --> Location_admit_discharge : HAS_LOCATION
+    ICU_Discharge --> Location_admit_discharge : HAS_LOCATION
     
     HospitalAdmission --> Location_admit_discharge : HAS_LOCATION
     HospitalDischarge --> Location_admit_discharge : HAS_LOCATION
