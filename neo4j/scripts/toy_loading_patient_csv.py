@@ -104,11 +104,18 @@ def get_multi_source_nodes(node_name, node_def, row):
     nodes = []
     for field in node_def['source_reference_fields']:
         val = row.get(field)
-        if val is not None:
-            nodes.append({
-                "source_reference": f"{prefix}_{val}",
-                "label": str(val)
-            })
+        # Guard against None, float NaN, empty string
+        if val is None:
+            continue
+        if isinstance(val, float) and np.isnan(val):
+            continue
+        val_str = str(val).strip()
+        if not val_str or val_str.lower() == 'nan':
+            continue
+        nodes.append({
+            "source_reference": f"{prefix}_{val_str}",
+            "label": val_str
+        })
     return nodes
 
 def get_multi_source_ref(node_name, field_value):
@@ -235,15 +242,17 @@ def load_and_prep_data(csv_path, mapping_config):
 
 def create_nodes_tx(tx, batch, node_label):
     """Batch-MERGE all nodes of a given label"""
-    node_batch = []
+    seen   = {}
     for rec in batch:
         entry = rec.get(node_label)
         if entry is None:
             continue
-        if isinstance(entry, list):   # multi-source node (e.g. Location_admit_discharge)
-            node_batch.extend(entry)
-        else:
-            node_batch.append(entry)
+        entries = entry if isinstance(entry, list) else [entry]
+        for node in entries:
+            ref = node.get('source_reference')
+            if ref and ref not in seen:
+                seen[ref] = node
+    node_batch = list(seen.values())
     if not node_batch:
         return
     query = f"""

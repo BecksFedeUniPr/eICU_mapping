@@ -191,6 +191,18 @@
             "to": "Location_admit_discharge",
             "type": "HAS_LOCATION",
             "join_key": "hospitaldischargelocation"
+        },
+        {
+            "from": "ICU_Admit",
+            "to": "Location_admit_discharge",
+            "type": "HAS_LOCATION",
+            "join_key": "unitadmitsource"
+        },
+        {
+            "from": "ICU_Discharge",
+            "to": "Location_admit_discharge",
+            "type": "HAS_LOCATION",
+            "join_key": "unitdischargelocation"
         }
     ]
 }
