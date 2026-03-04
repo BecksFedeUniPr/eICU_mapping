@@ -171,24 +171,6 @@
             "join_key": "patientunitstayid"
         },
         {
-            "from": "ICU_Admit",
-            "to": "Location_Ward",
-            "type": "HAS_LOCATION",
-            "join_key": {
-                "from_field": "patientunitstayid",
-                "to_field": "HOSP_{hospitalid}_Ward_{wardid}"
-            }
-        },
-        {
-            "from": "ICU_Discharge",
-            "to": "Location_Ward",
-            "type": "HAS_LOCATION",
-            "join_key": {
-                "from_field": "patientunitstayid",
-                "to_field": "HOSP_{hospitalid}_Ward_{wardid}"
-            }
-        },
-        {
             "from": "HospitalAdmission",
             "to": "Location_admit_discharge",
             "type": "HAS_LOCATION",
