@@ -114,7 +114,7 @@ def get_multi_source_nodes(node_name, node_def, row):
             continue
         nodes.append({
             "source_reference": f"{prefix}_{val_str}",
-            "label": val_str
+            "name": val_str
         })
     return nodes
 
@@ -229,6 +229,37 @@ def load_and_prep_data(csv_path, mapping_config):
                     "type":       rel['type']
                 })
 
+        # ── HAS_CONCEPT → Local_Concept (one shared node per type, cheap) ──
+        for node_name, node_def in nodes_map.items():
+            concept_id = node_def.get('concept_id')
+            if not concept_id or concept_id == 'None':
+                continue
+            concept_ref = f"CONCEPT_{node_name}"
+            if is_multi_source(node_def):
+                for entry in record.get(node_name, []):
+                    from_ref = entry.get('source_reference')
+                    if from_ref:
+                        rel_list.append({
+                            "from_label": node_name,
+                            "from_ref":   from_ref,
+                            "to_label":   "Local_Concept",
+                            "to_ref":     concept_ref,
+                            "type":       "HAS_CONCEPT"
+                        })
+            else:
+                entity_data = record.get(node_name)
+                if not isinstance(entity_data, dict):
+                    continue
+                from_ref = entity_data.get('source_reference')
+                if from_ref:
+                    rel_list.append({
+                        "from_label": node_name,
+                        "from_ref":   from_ref,
+                        "to_label":   "Local_Concept",
+                        "to_ref":     concept_ref,
+                        "type":       "HAS_CONCEPT"
+                    })
+
         record['_relationships'] = rel_list
         records.append(record)
 
@@ -291,6 +322,32 @@ def setup_constraints(tx, mapping_config):
             f"FOR (n:{node_label}) REQUIRE n.source_reference IS UNIQUE;"
         )
 
+def create_local_concepts_tx(tx, mapping_config):
+    """Create exactly one Local_Concept node per node type (cheap: ~10 nodes total)."""
+    tx.run(
+        "CREATE CONSTRAINT local_concept_src_ref IF NOT EXISTS "
+        "FOR (n:Local_Concept) REQUIRE n.source_reference IS UNIQUE;"
+    )
+    concepts = []
+    for node_name, node_def in mapping_config['nodes'].items():
+        concept_id    = node_def.get('concept_id')
+        concept_label = node_def.get('concept_label')
+        if not concept_id or concept_id == 'None':
+            continue
+        concepts.append({
+            "source_reference": f"CONCEPT_{node_name}",
+            "concept_id":       concept_id,
+            "concept_label":    concept_label,
+            "name":             node_name
+        })
+    if not concepts:
+        return
+    tx.run("""
+    UNWIND $concepts AS c
+    MERGE (lc:Local_Concept {source_reference: c.source_reference})
+    ON CREATE SET lc += c
+    """, concepts=concepts)
+
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
@@ -316,6 +373,9 @@ if __name__ == "__main__":
 
         session.execute_write(setup_constraints, mapping_config)
         print("✅ Constraints created")
+
+        session.execute_write(create_local_concepts_tx, mapping_config)
+        print("✅ Local_Concept nodes created")
 
         for i in range(0, total_rows, BATCH_SIZE):
             chunk = data[i: i + BATCH_SIZE]

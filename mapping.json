@@ -6,14 +6,16 @@
     "nodes": {
         "Patient": {
             "source_reference": "uniquepid",
-                "age":"age",
-                "gender":"gender",
-                "ethnicity":"ethnicity"
+            "concept_id": "eICU:001",
+            "concept_label": "Patient",
+            "age": "age",
+            "gender": "gender",
+            "ethnicity": "ethnicity"
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
-            "concept_id": "None",
-            "concept_label": "None",
+            "concept_id": "eICU:002",
+            "concept_label": "Encounter",
             "type": "encounter",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
@@ -22,8 +24,8 @@
         "Encounter_Segment": {
             "source_reference": "patientunitstayid",
             "type": "encounter_segment",
-            "concept_id":"None",
-            "concept_label": "None",
+            "concept_id": "eICU:003",
+            "concept_label": "Encounter Segment",
             "start_time": "unitadmittime24",
             "end_time": "unitdischargetime24 + unitdiscargeoffset",
             "payload": [    
@@ -35,8 +37,8 @@
         "HospitalAdmission": {
             "type": "event",
             "source_reference": "patienthealthsystemstayid",
-            "concept_label": "None",
-            "concept_id" :"None",
+            "concept_label": "Hospital Admission",
+            "concept_id": "eICU:004",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "payload": [
                 "hospitaladmitsource",
@@ -47,8 +49,8 @@
         "HospitalDischarge": {
             "type": "event",
             "source_reference": "patienthealthsystemstayid",
-            "concept_label": "None",
-            "concept_id" :"None",
+            "concept_label": "Hospital Discharge",
+            "concept_id": "eICU:005",
             "timestamp": "hospitaldischargetime24 + hospitaldischargeoffset",
             "payload": [
                 "hospitaldischargestatus",
@@ -60,8 +62,8 @@
         "ICU_Admit": {
             "type": "event",
             "source_reference": "patientunitstayid",
-            "concept_label": "None",
-            "concept_id" :"None",
+            "concept_label": "ICU Admission",
+            "concept_id": "eICU:006",
             "timestamp": "unitadmittime24",
             "payload": [
                 "unitadmitsource",
@@ -72,8 +74,8 @@
         "ICU_Discharge": {
            "type": "event",
             "source_reference": "patientunitstayid",
-            "concept_label": "None",
-            "concept_id" :"None",
+            "concept_label": "ICU Discharge",
+            "concept_id": "eICU:007",
             "timestamp": "unitadmittime24",
             "payload": [
                 "unitadmitsource",
@@ -82,14 +84,20 @@
             ]
         },
         "Location_Hospital": {
-            "source_reference": "HOSP_{hospitalid}"
+            "source_reference": "HOSP_{hospitalid}",
+            "concept_id": "eICU:008",
+            "concept_label": "Hospital"
         },
         "Location_Ward": {
-            "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
+            "source_reference": "HOSP_{hospitalid}_Ward_{wardid}",
+            "concept_id": "eICU:009",
+            "concept_label": "Ward"
         },
         
-        "Location_admit_discharge": { 
-            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"]
+        "Location_admit_discharge": {
+            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"],
+            "concept_id": "eICU:010",
+            "concept_label": "Admit/Discharge Location"
         }
     },
     "relationships": [
