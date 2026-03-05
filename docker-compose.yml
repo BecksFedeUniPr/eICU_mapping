@@ -30,7 +30,7 @@ services:
         WORKDIR /app
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt
-        COPY neo4j/scripts/toy_loading_patient_csv.py .
+        COPY toy_loading_patient_csv.py .
         COPY mapping.json .
         CMD ["python", "toy_loading_patient_csv.py"]
     container_name: mediverse_loader
