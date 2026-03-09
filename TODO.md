@@ -12,4 +12,4 @@ Add Categorial Values & Columuns ! Discuss with Andra
 }   
 
 
-or i have to create new relationships like has gender directed to the unique concept
+or i have to create new relationships like has gender directed to the unique concept btw like in the OMOP SCHEMA

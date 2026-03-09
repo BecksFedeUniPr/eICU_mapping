@@ -12,8 +12,8 @@
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
-            "concept_id": "eICU:002",
-            "concept_label": "Encounter",
+            "concept_id": "None",
+            "concept_label": "None",
             "type": "encounter",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
@@ -22,8 +22,8 @@
         "Encounter_Segment": {
             "source_reference": "patientunitstayid",
             "type": "encounter_segment",
-            "concept_id": "eICU:003",
-            "concept_label": "Encounter Segment",
+            "concept_id":  "None",
+            "concept_label":  "None",
             "start_time": "unitadmittime24",
             "end_time": "unitdischargetime24 + unitdiscargeoffset",
             "payload": [    
@@ -35,8 +35,8 @@
         "HospitalAdmission": {
             "type": "event",
             "source_reference": "patienthealthsystemstayid",
-            "concept_label": "Hospital Admission",
-            "concept_id": "eICU:004",
+            "concept_label":  "None",
+            "concept_id":  "None",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "payload": [
                 "hospitaladmitsource",
@@ -47,8 +47,8 @@
         "HospitalDischarge": {
             "type": "event",
             "source_reference": "patienthealthsystemstayid",
-            "concept_label": "Hospital Discharge",
-            "concept_id": "eICU:005",
+            "concept_label":  "None",
+            "concept_id":  "None",
             "timestamp": "hospitaldischargetime24 + hospitaldischargeoffset",
             "payload": [
                 "hospitaldischargestatus",
@@ -60,8 +60,8 @@
         "ICU_Admit": {
             "type": "event",
             "source_reference": "patientunitstayid",
-            "concept_label": "ICU Admission",
-            "concept_id": "eICU:006",
+            "concept_label":  "None",
+            "concept_id":  "None",
             "timestamp": "unitadmittime24",
             "payload": [
                 "unitadmitsource",
@@ -72,8 +72,8 @@
         "ICU_Discharge": {
            "type": "event",
             "source_reference": "patientunitstayid",
-            "concept_label": "ICU Discharge",
-            "concept_id": "eICU:007",
+            "concept_label":  "None",
+            "concept_id":  "None",
             "timestamp": "unitadmittime24",
             "payload": [
                 "unitadmitsource",
