@@ -75,11 +75,8 @@ classDiagram
     
     Encounter --> Location : HAS_LOCATION
     Encounter_Segment --> Location : HAS_LOCATION
----
+--
 
-## Quick Start
-
-```bash
 # 1. Drop the eICU patient.csv into neo4j/import/
 cp /path/to/eicu/patient.csv neo4j/import/
 
