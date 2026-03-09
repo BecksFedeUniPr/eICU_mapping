@@ -59,8 +59,9 @@ classDiagram
         +source_reference
     }
 
+    Patient --> Local_Concept: HAS_LOCAL_CONCEPT [type]
+    Patient --> Encounter_Segment: HAS_ECOUNTER_SEGMENT
     Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [type]
-
     Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [type]
     
     Patient --> Encounter : HAS_EVENT [source, dismission]
