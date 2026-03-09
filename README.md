@@ -64,8 +64,8 @@ classDiagram
     }
 
     %% Relationships (Esattamente come nel tuo JSON)
-    Patient --> Encounter : HAS_EVENT
-    Patient --> Encounter_Segment : HAS_ENCOUNTER_SEGMENT
+    Patient --> Encounter : HAS_EVENT [source, dismission]
+    Patient --> Encounter_Segment : HAS_SEGMENT [source, dismission]
     Encounter --> Encounter_Segment : HAS_SEGMENT
     
     Encounter --> Location_Hospital : HAS_LOCATION
