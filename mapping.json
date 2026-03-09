@@ -6,8 +6,6 @@
     "nodes": {
         "Patient": {
             "source_reference": "uniquepid",
-            "concept_id": "eICU:001",
-            "concept_label": "Patient",
             "age": "age",
             "gender": "gender",
             "ethnicity": "ethnicity"
@@ -85,19 +83,13 @@
         },
         "Location_Hospital": {
             "source_reference": "HOSP_{hospitalid}",
-            "concept_id": "eICU:008",
-            "concept_label": "Hospital"
         },
         "Location_Ward": {
             "source_reference": "HOSP_{hospitalid}_Ward_{wardid}",
-            "concept_id": "eICU:009",
-            "concept_label": "Ward"
         },
         
         "Location_admit_discharge": {
             "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"],
-            "concept_id": "eICU:010",
-            "concept_label": "Admit/Discharge Location"
         }
     },
     "relationships": [
