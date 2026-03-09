@@ -82,14 +82,14 @@
             ]
         },
         "Location_Hospital": {
-            "source_reference": "HOSP_{hospitalid}",
+            "source_reference": "HOSP_{hospitalid}"
         },
         "Location_Ward": {
-            "source_reference": "HOSP_{hospitalid}_Ward_{wardid}",
+            "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
         },
         
         "Location_admit_discharge": {
-            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"],
+            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"]
         }
     },
     "relationships": [
