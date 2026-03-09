@@ -71,6 +71,17 @@ classDiagram
     Encounter_Segment --> Location : HAS_LOCATION
 ```
 
+# Categorical Colums
+
+| **Column eICU** |
+| --- |
+| **`gender`** |
+| **`ethnicity`** |
+| **`apacheadmission // Code when you enter in an eICU`** |
+| **`unittype`** |
+| **`unitstaytype`** |
+| **apache_dissimions**  |
+
 # 1. Drop the eICU patient.csv into neo4j/import/
 cp /path/to/eicu/patient.csv neo4j/import/
 
@@ -83,7 +94,7 @@ open http://localhost:7474
 
 Default credentials: `neo4j / Mediverse`
 
----
+--
 
 ## Mapping
 

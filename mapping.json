@@ -6,115 +6,76 @@
     "nodes": {
         "Patient": {
             "source_reference": "uniquepid",
-            "age": "age",
-            "gender": "gender",
-            "ethnicity": "ethnicity"
+            "age": "age"
+        },
+        "Local_Concept": {
+            "source_value": "type"
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
-            "concept_id": "None",
-            "concept_label": "None",
-            "type": "encounter",
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
-            "payload": []
+            "concept_label": "None",
+            "concept_id": "None",
+            "payload": [
+                "admissionheight",
+                "hospitaldischargeyear",
+                "admissionweight",
+                "dischargeweight"
+            ],
+            "type": "Encounter"
         },
         "Encounter_Segment": {
             "source_reference": "patientunitstayid",
-            "type": "encounter_segment",
-            "concept_id":  "None",
-            "concept_label":  "None",
-            "start_time": "unitadmittime24",
-            "end_time": "unitdischargetime24 + unitdiscargeoffset",
-            "payload": [    
-                "unit_visit_number",
-                "unitstaytype",
-                "unittype"
-            ]
+            "start_time": "unit_admit_time",
+            "end_time": "unitdischargetime24 + unitdischargeoffset",
+            "concept_label": "None",
+            "concept_id": "None",
+            "type": "Encounter Segment"
         },
-        "HospitalAdmission": {
-            "type": "event",
-            "source_reference": "patienthealthsystemstayid",
-            "concept_label":  "None",
-            "concept_id":  "None",
-            "start_time": "hospitaladmittime24 + hospitaladmitoffset",
-            "payload": [
-                "hospitaladmitsource",
-                "admissionheight",
-                "admissionweight"
-            ]
-        },
-        "HospitalDischarge": {
-            "type": "event",
-            "source_reference": "patienthealthsystemstayid",
-            "concept_label":  "None",
-            "concept_id":  "None",
-            "timestamp": "hospitaldischargetime24 + hospitaldischargeoffset",
-            "payload": [
-                "hospitaldischargestatus",
-                "hospitaldischargelocation",
-                "hospitaldischargeyear",
-                "dischargeweight"
-            ]
-        },
-        "ICU_Admit": {
-            "type": "event",
-            "source_reference": "patientunitstayid",
-            "concept_label":  "None",
-            "concept_id":  "None",
-            "timestamp": "unitadmittime24",
-            "payload": [
-                "unitadmitsource",
-                "unittype",
-                "unitstaytype"
-            ]
-        },
-        "ICU_Discharge": {
-           "type": "event",
-            "source_reference": "patientunitstayid",
-            "concept_label":  "None",
-            "concept_id":  "None",
-            "timestamp": "unitadmittime24",
-            "payload": [
-                "unitadmitsource",
-                "unittype",
-                "unitstaytype"
-            ]
-        },
-        "Location_Hospital": {
-            "source_reference": "HOSP_{hospitalid}"
-        },
-        "Location_Ward": {
-            "source_reference": "HOSP_{hospitalid}_Ward_{wardid}"
-        },
-        
-        "Location_admit_discharge": {
-            "source_reference_fields": ["hospitaladmitsource", "hospitaldischargelocation", "unitdischargelocation", "unitadmitsource"]
+        "Location": {
+            "source_reference": null
         }
     },
     "relationships": [
         {
             "from": "Patient",
+            "to": "Local_Concept",
+            "type": "HAS_LOCAL_CONCEPT",
+            "properties": ["type"]
+        },
+        {
+            "from": "Patient",
+            "to": "Encounter_Segment",
+            "type": "HAS_ENCOUNTER_SEGMENT"
+        },
+        {
+            "from": "Encounter",
+            "to": "Local_Concept",
+            "type": "HAS_LOCAL_CONCEPT",
+            "properties": ["type"]
+        },
+        {
+            "from": "Encounter_Segment",
+            "to": "Local_Concept",
+            "type": "HAS_LOCAL_CONCEPT",
+            "properties": ["type"]
+        },
+        {
+            "from": "Patient",
             "to": "Encounter",
-            "type": "HAS_ENCOUNTER",
+            "type": "HAS_EVENT",
+            "properties": ["source", "dismission"],
             "join_key": {
                 "from_field": "uniquepid",
                 "to_field": "patienthealthsystemstayid"
             }
         },
         {
-            "from": "Patient",
+            "from": "Encounter",
             "to": "Encounter_Segment",
             "type": "HAS_ENCOUNTER_SEGMENT",
-            "join_key": {
-                "from_field": "uniquepid",
-                "to_field": "patientunitstayid"
-            }
-        },
-        {
-            "from": "Encounter",
-            "to": "Encounter_Segment",
-            "type": "HAS_SEGMENT",
+            "properties": ["source", "dismission"],
             "join_key": {
                 "from_field": "patienthealthsystemstayid",
                 "to_field": "patientunitstayid"
@@ -122,69 +83,13 @@
         },
         {
             "from": "Encounter",
-            "to": "Location_Hospital",
-            "type": "HAS_LOCATION",
-            "join_key": {
-                "from_field": "patienthealthsystemstayid",
-                "to_field": "HOSP_{hospitalid}"
-            }
+            "to": "Location",
+            "type": "HAS_LOCATION"
         },
         {
             "from": "Encounter_Segment",
-            "to": "Location_Ward",
-            "type": "HAS_LOCATION",
-            "join_key": {
-                "from_field": "patientunitstayid",
-                "to_field": "HOSP_{hospitalid}_Ward_{wardid}"
-            }
-        },
-        {
-            "from": "Encounter",
-            "to": "HospitalAdmission",
-            "type": "HAS_HOSPITAL_ADMISSION",
-            "join_key": "patienthealthsystemstayid"
-        },
-        {
-            "from": "Encounter",
-            "to": "HospitalDischarge",
-            "type": "HAS_HOSPITAL_DISCHARGE",
-            "join_key": "patienthealthsystemstayid"
-        },
-        {
-            "from": "Encounter_Segment",
-            "to": "ICU_Admit",
-            "type": "HAS_ICU_ADMISSION",
-            "join_key": "patientunitstayid"
-        },
-        {
-            "from": "Encounter_Segment",
-            "to": "ICU_Discharge",
-            "type": "HAS_ICU_DISCHARGE",
-            "join_key": "patientunitstayid"
-        },
-        {
-            "from": "HospitalAdmission",
-            "to": "Location_admit_discharge",
-            "type": "HAS_LOCATION",
-            "join_key": "hospitaladmitsource"
-        },
-        {
-            "from": "HospitalDischarge",
-            "to": "Location_admit_discharge",
-            "type": "HAS_LOCATION",
-            "join_key": "hospitaldischargelocation"
-        },
-        {
-            "from": "ICU_Admit",
-            "to": "Location_admit_discharge",
-            "type": "HAS_LOCATION",
-            "join_key": "unitadmitsource"
-        },
-        {
-            "from": "ICU_Discharge",
-            "to": "Location_admit_discharge",
-            "type": "HAS_LOCATION",
-            "join_key": "unitdischargelocation"
+            "to": "Location",
+            "type": "HAS_LOCATION"
         }
     ]
 }
