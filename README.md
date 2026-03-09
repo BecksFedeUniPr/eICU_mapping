@@ -51,38 +51,6 @@ classDiagram
         +unittype
     }
 
-    class HospitalAdmission {
-        +source_reference
-        +start_time
-        +hospitaladmitsource
-        +admissionheight
-        +admissionweight
-    }
-
-    class HospitalDischarge {
-        +source_reference
-        +timestamp
-        +hospitaldischargestatus
-        +hospitaldischargelocation
-        +hospitaldischargeyear
-        +dischargeweight
-    }
-
-    class ICU_Admit {
-        +source_reference
-        +timestamp
-        +unitadmitsource
-        +unittype
-        +unitstaytype
-    }
-
-    class ICU_Discharge {
-        +source_reference
-        +timestamp
-        +unitdischargelocation
-        +unitdischargestatus
-    }
-
     class Location_Hospital {
         +HOSP_hospitalid
     }
