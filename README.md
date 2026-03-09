@@ -75,7 +75,7 @@ classDiagram
     
     Encounter --> Location : HAS_LOCATION
     Encounter_Segment --> Location : HAS_LOCATION
---
+```
 
 # 1. Drop the eICU patient.csv into neo4j/import/
 cp /path/to/eicu/patient.csv neo4j/import/
@@ -85,7 +85,7 @@ docker compose up
 
 # 3. Open the browser
 open http://localhost:7474
-```
+
 
 Default credentials: `neo4j / Mediverse`
 
