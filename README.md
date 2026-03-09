@@ -59,16 +59,9 @@ classDiagram
         +source_reference
     }
 
-    Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [hospitaladmitsource]
-    Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [hospitaldischargelocation]
-    Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [hospitaldischargestatus]
+    Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [type]
 
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [apacheadmissiondx]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [unittype]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [unitadmitsource]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [unitstaytype]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [unitdischargelocation]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [unitdischargestatus]
+    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [type]
     
     Patient --> Encounter : HAS_EVENT [source, dismission]
     Encounter --> Encounter_Segment : HAS_ECOUNTER_SEGMENT [source, dismission]
