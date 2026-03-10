@@ -1,40 +1,43 @@
 {
     "mapping_metadata": {
         "source_dataset": "eICU",
-        "target_model": "Backbone"
+        "target_model": "Backbone",
+        "version": "1.0.0",
+        "csv_file": "patient.csv"
     },
     "nodes": {
         "Patient": {
             "source_reference": "uniquepid",
-            "age": "age"
+                "age": "age"
         },
         "Local_Concept": {
-            "source_value": "type"
+            "source_reference": "__derived_from_column_value__"
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
+            "type": "Encounter",
+            "concept_label": null,
+            "concept_id": null,
             "start_time": "hospitaladmittime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
-            "concept_label": "None",
-            "concept_id": "None",
             "payload": [
                 "admissionheight",
                 "hospitaldischargeyear",
                 "admissionweight",
                 "dischargeweight"
-            ],
-            "type": "Encounter"
+            ]
         },
         "Encounter_Segment": {
             "source_reference": "patientunitstayid",
-            "start_time": "unit_admit_time",
+            "type": "Encounter Segment",
+            "concept_label": null,
+            "concept_id": null,
+            "start_time": "unitadmittime24",
             "end_time": "unitdischargetime24 + unitdischargeoffset",
-            "concept_label": "None",
-            "concept_id": "None",
-            "type": "Encounter Segment"
+            "payload": ["unitvisitnumber"]
         },
         "Location": {
-            "source_reference": null
+            "source_reference": "__derived_from_column_value__"
         }
     },
     "relationships": [
@@ -42,43 +45,53 @@
             "from": "Patient",
             "to": "Local_Concept",
             "type": "HAS_LOCAL_CONCEPT",
-            "properties": ["type"]
+            "properties": { "type": "__column_name__" }
         },
         {
             "from": "Patient",
             "to": "Encounter_Segment",
-            "type": "HAS_ENCOUNTER_SEGMENT"
+            "type": "HAS_ENCOUNTER_SEGMENT",
+            "join_key": {
+                "from_field": "uniquepid",
+                "to_field": "patientunitstayid"
+            }
         },
         {
             "from": "Encounter",
             "to": "Local_Concept",
             "type": "HAS_LOCAL_CONCEPT",
-            "properties": ["type"]
+            "properties": { "type": "__column_name__" }
         },
         {
             "from": "Encounter_Segment",
             "to": "Local_Concept",
             "type": "HAS_LOCAL_CONCEPT",
-            "properties": ["type"]
+            "properties": { "type": "__column_name__" }
         },
         {
             "from": "Patient",
             "to": "Encounter",
             "type": "HAS_EVENT",
-            "properties": ["source", "dismission"],
             "join_key": {
                 "from_field": "uniquepid",
                 "to_field": "patienthealthsystemstayid"
+            },
+            "properties": {
+                "source": "unitadmitsource",
+                "dismission": "unitdischargelocation"
             }
         },
         {
             "from": "Encounter",
             "to": "Encounter_Segment",
             "type": "HAS_ENCOUNTER_SEGMENT",
-            "properties": ["source", "dismission"],
             "join_key": {
                 "from_field": "patienthealthsystemstayid",
                 "to_field": "patientunitstayid"
+            },
+            "properties": {
+                "source": "unitadmitsource",
+                "dismission": "unitdischargelocation"
             }
         },
         {

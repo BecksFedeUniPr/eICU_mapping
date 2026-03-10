@@ -53,6 +53,7 @@ classDiagram
         +concept_label="None"
         +concept_id="None"
         +type = "Encounter Segment"
+        +payload = ["unitvisitnumber"]
     }
 
     class Location {
@@ -64,7 +65,7 @@ classDiagram
     Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [type]
     Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [type]
     
-    Patient --> Encounter : HAS_EVENT [source, dismission]
+    Patient --> Encounter : HAS_EVENT [source:unitadmitsource, dismission:unitdischargelocation]
     Encounter --> Encounter_Segment : HAS_ECOUNTER_SEGMENT [source, dismission]
     
     Encounter --> Location : HAS_LOCATION
@@ -79,8 +80,9 @@ classDiagram
 | **`ethnicity`** |
 | **`apacheadmission // Code when you enter in an eICU`** |
 | **`unittype`** |
+| **`unitdischargestatus`** |
 | **`unitstaytype`** |
-| **apache_dissimions**  |
+| **`apache_dissimions`**  |
 
 # 1. Drop the eICU patient.csv into neo4j/import/
 cp /path/to/eicu/patient.csv neo4j/import/
