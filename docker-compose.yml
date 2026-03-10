@@ -45,6 +45,8 @@ services:
       - MAPPING_FILE=mapping.json
     volumes:
       - ./neo4j/import:/data        # place patient.csv here before running
+      - ./mapping.json:/app/mapping.json          # live-mount: no rebuild needed on JSON changes
+      - ./toy_loading_patient_csv.py:/app/toy_loading_patient_csv.py  # live-mount: no rebuild needed on script changes
     restart: "no"
 
 volumes:

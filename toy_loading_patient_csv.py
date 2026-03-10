@@ -89,9 +89,10 @@ LOCAL_CONCEPT_COLUMNS = {
 
 def get_local_concept_nodes(row):
     """
-    Build a list of {source_reference, concept_label, name} dicts
+    Build a list of {source_reference, source_value} dicts
     for every categorical column that has a non-null value.
-    source_reference = LOCALCONCEPT_{column_name}_{value}
+    source_reference = LOCALCONCEPT_{value}  (one node per unique value,
+    regardless of which column it came from — column context lives on the rel).
     """
     nodes = {}
     for node_type, columns in LOCAL_CONCEPT_COLUMNS.items():
@@ -104,12 +105,11 @@ def get_local_concept_nodes(row):
             val_str = str(val).strip()
             if not val_str or val_str.lower() == 'nan':
                 continue
-            ref = f"LOCALCONCEPT_{col}_{val_str}"
+            ref = f"LOCALCONCEPT_{val_str}"
             if ref not in nodes:
                 nodes[ref] = {
                     "source_reference": ref,
-                    "concept_label": col,
-                    "name": val_str
+                    "source_value": val_str
                 }
     return list(nodes.values())
 
@@ -131,7 +131,7 @@ def get_local_concept_rels(node_name, node_def, row):
         val_str = str(val).strip()
         if not val_str or val_str.lower() == 'nan':
             continue
-        concept_ref = f"LOCALCONCEPT_{col}_{val_str}"
+        concept_ref = f"LOCALCONCEPT_{val_str}"
         rels.append({
             "from_label":  node_name,
             "from_ref":    src_ref,
@@ -358,7 +358,7 @@ def load_and_prep_data(csv_path, mapping_config):
         records.append(record)
 
     if skipped:
-        print(f"⚠️  Skipped {skipped} rows with missing critical IDs")
+        print(f"[WARN] Skipped {skipped} rows with missing critical IDs")
     return records
 
 # ─────────────────────────────────────────────
@@ -446,13 +446,44 @@ def cleanup_stale_relationships(session, mapping_config):
 
     stale = existing_types - valid_types
     if not stale:
-        print("✅ No stale relationship types found")
+        print("[OK] No stale relationship types found")
         return
 
     for rel_type in stale:
-        print(f"  🗑️  Removing stale relationship type: {rel_type}")
+        print(f"  [DEL] Removing stale relationship type: {rel_type}")
         session.run(f"MATCH ()-[r:`{rel_type}`]->() DELETE r")
-    print(f"✅ Removed {len(stale)} stale relationship type(s): {stale}")
+    print(f"[OK] Removed {len(stale)} stale relationship type(s): {stale}")
+
+
+def cleanup_stale_nodes(session, mapping_config):
+    """
+    Delete any nodes whose label is no longer defined in the current mapping.
+    Also drops the now-orphan uniqueness constraints for those labels.
+    """
+    valid_labels = set(mapping_config['nodes'].keys())
+    valid_labels.update({'Local_Concept', 'Location'})
+
+    existing = session.run(
+        "CALL db.labels() YIELD label RETURN label"
+    ).data()
+    existing_labels = {r['label'] for r in existing}
+
+    stale = existing_labels - valid_labels
+    if not stale:
+        print("[OK] No stale node labels found")
+        return
+
+    for label in stale:
+        print(f"Removing stale nodes with label: {label}")
+        session.run(f"MATCH (n:`{label}`) DETACH DELETE n")
+        # Drop the constraint if it exists
+        try:
+            session.run(
+                f"DROP CONSTRAINT {label.lower()}_src_ref IF EXISTS"
+            )
+        except Exception:
+            pass
+    print(f"[OK] Removed {len(stale)} stale node label(s): {stale}")
 
 
 # ─────────────────────────────────────────────
@@ -487,11 +518,14 @@ if __name__ == "__main__":
     driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
     with driver.session() as session:
 
-        print("🧹 Cleaning up stale relationship types...")
+        print("Cleaning up stale node labels...")
+        cleanup_stale_nodes(session, mapping_config)
+
+        print("Cleaning up stale relationship types...")
         cleanup_stale_relationships(session, mapping_config)
 
         session.execute_write(setup_constraints, mapping_config)
-        print("✅ Constraints created")
+        print("Constraints created")
 
         for i in range(0, total_rows, BATCH_SIZE):
             chunk = data[i: i + BATCH_SIZE]
@@ -503,7 +537,7 @@ if __name__ == "__main__":
             # 2. Create all relationships
             session.execute_write(create_relationships_tx, chunk)
 
-            print(f"✅ Processed {min(i + BATCH_SIZE, total_rows)}/{total_rows} rows")
+            print(f"Processed {min(i + BATCH_SIZE, total_rows)}/{total_rows} rows")
 
     driver.close()
-    print("Done! Graph fully loaded from mapping.json 🚀")
+    print("Done! Graph fully loaded from mapping.json")
