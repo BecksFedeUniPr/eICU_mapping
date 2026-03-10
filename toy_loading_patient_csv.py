@@ -89,10 +89,10 @@ LOCAL_CONCEPT_COLUMNS = {
 
 def get_local_concept_nodes(row):
     """
-    Build a list of {source_reference, source_value} dicts
-    for every categorical column that has a non-null value.
-    source_reference = LOCALCONCEPT_{value}  (one node per unique value,
-    regardless of which column it came from — column context lives on the rel).
+    Build a list of {source_reference, source_value, type} dicts.
+    source_reference = LOCALCONCEPT_{column}_{value}  — one node per (category, value)
+    pair to avoid semantic aliasing (e.g. 'Alive' in discharge_status vs unit_status).
+    The category is stored as the 'type' property on the node itself.
     """
     nodes = {}
     for node_type, columns in LOCAL_CONCEPT_COLUMNS.items():
@@ -105,11 +105,12 @@ def get_local_concept_nodes(row):
             val_str = str(val).strip()
             if not val_str or val_str.lower() == 'nan':
                 continue
-            ref = f"LOCALCONCEPT_{val_str}"
+            ref = f"LOCALCONCEPT_{col}_{val_str}"
             if ref not in nodes:
                 nodes[ref] = {
                     "source_reference": ref,
-                    "source_value": val_str
+                    "source_value":     val_str,
+                    "type":             col
                 }
     return list(nodes.values())
 
@@ -131,14 +132,14 @@ def get_local_concept_rels(node_name, node_def, row):
         val_str = str(val).strip()
         if not val_str or val_str.lower() == 'nan':
             continue
-        concept_ref = f"LOCALCONCEPT_{val_str}"
+        concept_ref = f"LOCALCONCEPT_{col}_{val_str}"
         rels.append({
             "from_label":  node_name,
             "from_ref":    src_ref,
             "to_label":    "Local_Concept",
             "to_ref":      concept_ref,
             "type":        "HAS_LOCAL_CONCEPT",
-            "props":       {"type": col}
+            "props":       {}
         })
     return rels
 
@@ -419,13 +420,23 @@ def create_relationships_tx(tx, batch):
         tx.run(query, rels=rels)
 
 def setup_constraints(tx, mapping_config):
-    """Create uniqueness constraints for every node type in the mapping"""
+    """Create uniqueness constraints for every node type in the mapping.
+    Derived nodes (Local_Concept, Location) are handled explicitly so that
+    their constraints survive even if they are removed from mapping.json.
+    """
+    derived = {'Local_Concept', 'Location'}
     for node_label in mapping_config['nodes'].keys():
+        if node_label in derived:
+            continue
         tx.run(
             f"CREATE CONSTRAINT {node_label.lower()}_src_ref IF NOT EXISTS "
             f"FOR (n:{node_label}) REQUIRE n.source_reference IS UNIQUE;"
         )
-    # Extra constraint for derived Location nodes
+    # Derived nodes — always enforced regardless of mapping.json
+    tx.run(
+        "CREATE CONSTRAINT local_concept_src_ref IF NOT EXISTS "
+        "FOR (n:Local_Concept) REQUIRE n.source_reference IS UNIQUE;"
+    )
     tx.run(
         "CREATE CONSTRAINT location_src_ref IF NOT EXISTS "
         "FOR (n:Location) REQUIRE n.source_reference IS UNIQUE;"
