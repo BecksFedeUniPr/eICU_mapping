@@ -26,50 +26,49 @@ project-root/
 
 ```mermaid
 classDiagram
-    
-    class Patient {
-        +uniquepid
-        +age
-    }
 
-    class Local_Concept {
-        +source_value
-    }
+class Patient {
+    +uniquepid
+    +age
+}
 
-    class Encounter {
-        +source_reference = "patienthealthsystemstayid"
-        +start_time = "hospitaladmttime24 + hospitaladmitoffset"
-        +end_time = "hospitaldischargetime24 + hospitaldischargeoffset"
-        +concept_label = "None"
-        +concept_id = "None"
-        +payload = "payload=[admissionheight,hospitaldischargeyear,admissionweight,dischargeweight]
-        +type = "Encounter"
-    }
+class Local_Concept {
+    +source_value
+}
 
-    class Encounter_Segment {
-        +source_reference = "patientunitstayid"
-        +start_time = "unit_admit_time"
-        +end_time = "unitdischargetime24 + unitdischargeoffset"
-        +concept_label="None"
-        +concept_id="None"
-        +type = "Encounter Segment"
-        +payload = ["unitvisitnumber"]
-    }
+class Encounter {
+    +source_reference : patienthealthsystemstayid
+    +start_time : hospitaladmttime24 + hospitaladmitoffset
+    +end_time : hospitaldischargetime24 + hospitaldischargeoffset
+    +concept_label : None
+    +concept_id : None
+    +payload : admissionheight, hospitaldischargeyear, admissionweight,dischargeweight
+    +type : Encounter
+}
 
-    class Location {
-        +source_reference
-    }
+class Encounter_Segment {
+    +source_reference : patientunitstayid
+    +start_time : unit_admit_time
+    +end_time : unitdischargetime24 + unitdischargeoffset
+    +concept_label : None
+    +concept_id : None
+    +type : Encounter Segment
+    +payload : unitvisitnumber
+}
 
-    Patient --> Local_Concept: HAS_LOCAL_CONCEPT [type]
-    Patient --> Encounter_Segment: HAS_ECOUNTER_SEGMENT
-    Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [type]
-    Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [type]
-    
-    Patient --> Encounter : HAS_EVENT [source:unitadmitsource, dismission:unitdischargelocation]
-    Encounter --> Encounter_Segment : HAS_ECOUNTER_SEGMENT [source, dismission]
-    
-    Encounter --> Location : HAS_LOCATION
-    Encounter_Segment --> Location : HAS_LOCATION
+class Location {
+    +source_reference
+}
+
+Patient --> Local_Concept : HAS_LOCAL_CONCEPT [type]
+Patient --> Encounter_Segment : HAS_ENCOUNTER_SEGMENT
+Encounter --> Local_Concept : HAS_LOCAL_CONCEPT [type]
+Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT [type]
+
+Patient --> Encounter : HAS_EVENT [source , dismission]
+Encounter --> Encounter_Segment : HAS_ENCOUNTER_SEGMENT [source , dismission]
+Encounter --> Location : HAS_LOCATION
+Encounter_Segment --> Location : HAS_LOCATION
 ```
 
 # Categorical Colums
