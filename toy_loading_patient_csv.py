@@ -367,25 +367,37 @@ def load_and_prep_data(csv_path, mapping_config):
 # ─────────────────────────────────────────────
 
 def create_nodes_tx(tx, batch, node_label):
-    """Batch-MERGE all nodes of a given label"""
-    seen   = {}
+    """Batch-MERGE all nodes of a given label.
+    Local_Concept nodes are identified by (source_value, type); all others by source_reference.
+    """
+    seen = {}
     for rec in batch:
         entry = rec.get(node_label)
         if entry is None:
             continue
         entries = entry if isinstance(entry, list) else [entry]
         for node in entries:
-            ref = node.get('source_reference')
-            if ref and ref not in seen:
-                seen[ref] = node
+            if node_label == 'Local_Concept':
+                key = (node.get('source_value'), node.get('type'))
+            else:
+                key = node.get('source_reference')
+            if key and key not in seen:
+                seen[key] = node
     node_batch = list(seen.values())
     if not node_batch:
         return
-    query = f"""
-    UNWIND $batch AS props
-    MERGE (n:{node_label} {{source_reference: props.source_reference}})
-    ON CREATE SET n += props
-    """
+    if node_label == 'Local_Concept':
+        query = """
+        UNWIND $batch AS props
+        MERGE (n:Local_Concept {source_value: props.source_value, type: props.type})
+        ON CREATE SET n += props
+        """
+    else:
+        query = f"""
+        UNWIND $batch AS props
+        MERGE (n:{node_label} {{source_reference: props.source_reference}})
+        ON CREATE SET n += props
+        """
     tx.run(query, batch=node_batch)
 
 def create_relationships_tx(tx, batch):
@@ -402,11 +414,16 @@ def create_relationships_tx(tx, batch):
 
     for (from_label, to_label, rel_type), rels in grouped.items():
         has_props = any(r.get('props') for r in rels)
+        b_match = (
+            f"MATCH (b:Local_Concept {{source_value: rel.to_source_value, type: rel.to_type}})"
+            if to_label == 'Local_Concept'
+            else f"MATCH (b:{to_label} {{source_reference: rel.to_ref}})"
+        )
         if has_props:
             query = f"""
             UNWIND $rels AS rel
             MATCH (a:{from_label} {{source_reference: rel.from_ref}})
-            MATCH (b:{to_label}   {{source_reference: rel.to_ref}})
+            {b_match}
             MERGE (a)-[r:{rel_type}]->(b)
             ON CREATE SET r += rel.props
             """
@@ -414,7 +431,7 @@ def create_relationships_tx(tx, batch):
             query = f"""
             UNWIND $rels AS rel
             MATCH (a:{from_label} {{source_reference: rel.from_ref}})
-            MATCH (b:{to_label}   {{source_reference: rel.to_ref}})
+            {b_match}
             MERGE (a)-[:{rel_type}]->(b)
             """
         tx.run(query, rels=rels)
@@ -434,8 +451,8 @@ def setup_constraints(tx, mapping_config):
         )
     # Derived nodes — always enforced regardless of mapping.json
     tx.run(
-        "CREATE CONSTRAINT local_concept_src_ref IF NOT EXISTS "
-        "FOR (n:Local_Concept) REQUIRE n.source_reference IS UNIQUE;"
+        "CREATE CONSTRAINT local_concept_value_type IF NOT EXISTS "
+        "FOR (n:Local_Concept) REQUIRE (n.source_value, n.type) IS UNIQUE;"
     )
     tx.run(
         "CREATE CONSTRAINT location_src_ref IF NOT EXISTS "

@@ -11,7 +11,13 @@
                 "age": "age"
         },
         "Local_Concept": {
-            "source_reference": "__derived_from_column_value__"
+            "source_reference": "__derived_from_column_value__",
+            "identity_key": ["source_value", "type"],
+            "properties": {
+                "source_value": "__column_value__",
+                "type": "__column_name__"
+            },
+            "_comment": "Uniqueness is enforced on the composite key (source_value, type). Each distinct (value, category) pair is one node."
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
