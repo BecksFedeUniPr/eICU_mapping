@@ -8,7 +8,7 @@
     "nodes": {
         "Patient": {
             "source_reference": "uniquepid",
-                "age": "age"
+            "age": "age"
         },
         "Local_Concept": {
             "source_reference": "__derived_from_column_value__",
