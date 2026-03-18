@@ -14,14 +14,13 @@ PASSWORD = os.getenv("NEO4J_PASSWORD", "Mediverse")
 
 def clear_database(driver):
     """Cancella TUTTI i nodi e le relazioni nel database"""
-    print("⚠️  PULIZIA DATABASE IN CORSO...")
+    print("⚠️ PULIZIA DATABASE IN CORSO...")
     with driver.session() as session:
-        # DETACH DELETE cancella i nodi e rimuove automaticamente tutte le relazioni collegate
         session.run("MATCH (n) DETACH DELETE n")
     print("✅ Database svuotato correttamente.")
 
 def setup_constraints(driver):
-    """Crea i vincoli di unicità basati sul source_reference per TUTTI i nodi"""
+    """Crea i vincoli di unicità"""
     queries = [
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Patient) REQUIRE n.source_reference IS UNIQUE",
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Encounter) REQUIRE n.source_reference IS UNIQUE",
@@ -35,24 +34,28 @@ def setup_constraints(driver):
     print("✅ Vincoli di unicità impostati.")
 
 def parse_time_with_offset(time_24h, offset_minutes):
+    """Calcola l'orario e restituisce SOLO l'ora (HH:MM:SS)"""
     if pd.isna(time_24h) or time_24h is None: return None
     try:
         t_str = str(time_24h).strip()
-        # Prova con i secondi, se fallisce prova senza
+        # Gestisce sia HH:MM:SS che HH:MM
         try:
             base = datetime.strptime(t_str, '%H:%M:%S')
         except ValueError:
             base = datetime.strptime(t_str, '%H:%M')
+        
         if pd.notna(offset_minutes) and offset_minutes is not None:
             base = base + timedelta(minutes=int(float(offset_minutes)))
-        return base.isoformat()
+        
+        # RESTITUISCE SOLO L'ORA (HH:MM:SS)
+        return base.strftime('%H:%M:%S')
     except: 
         return None
 
 def process_batch(driver, batch):
     """Esegue le query Cypher per un singolo blocco di dati"""
     
-    # --- PREPARAZIONE JSON E TEMPO ---
+    # --- PREPARAZIONE JSON E SOLO ORA ---
     for row in batch:
         payload_enc = {
             "admissionheight": row.get("admissionheight"),
@@ -64,16 +67,15 @@ def process_batch(driver, batch):
         
         row['payload_encounter'] = json.dumps(payload_enc)
         row['payload_segment'] = json.dumps(payload_seg)
+        
+        # Calcolo orari (restituiscono solo HH:MM:SS)
         row['enc_start_time'] = parse_time_with_offset(row.get('hospitaladmittime24'), row.get('hospitaladmitoffset'))
         row['enc_end_time'] = parse_time_with_offset(row.get('hospitaldischargetime24'), row.get('hospitaldischargeoffset'))
-        row['seg_start_time'] = parse_time_with_offset(row.get('unit_admit_time'), 0)
+        row['seg_start_time'] = parse_time_with_offset(row.get('unitadmittime24'), 0)
         row['seg_end_time'] = parse_time_with_offset(row.get('unitdischargetime24'), row.get('unitdischargeoffset'))
 
     with driver.session() as session:
-        
-        # ==========================================
-        # FASE 1: LA BACKBONE
-        # ==========================================
+        # FASE 1: BACKBONE
         session.run("""
             UNWIND $batch AS row
             MERGE (p:Patient {source_reference: toString(row.uniquepid)})
@@ -94,9 +96,7 @@ def process_batch(driver, batch):
             MERGE (p)-[:HAS_EVENT]->(s)
         """, batch=batch)
 
-        # ==========================================
         # FASE 2: LOCATION & RICH EDGES
-        # ==========================================
         session.run("""
             UNWIND $batch AS row
             WITH row WHERE row.hospitalid IS NOT NULL
@@ -115,36 +115,19 @@ def process_batch(driver, batch):
                 r_w.dismission = row.unitdischargelocation
         """, batch=batch)
 
-        # ==========================================
-        # FASE 3: LOCAL CONCEPTS (Aggiornata!)
-        # ==========================================
-        p_concepts = []
-        e_concepts = []
-        s_concepts = []
-
+        # FASE 3: LOCAL CONCEPTS
+        p_concepts, e_concepts, s_concepts = [], [], []
         for row in batch:
-            # Patient: gender, ethnicity
             for col in ['gender', 'ethnicity']:
-                if pd.notna(row.get(col)):
-                    p_concepts.append({"pid": str(row['uniquepid']), "type": col, "val": str(row[col])})
-            
-            # Encounter: hospitaldischargestatus
+                if pd.notna(row.get(col)): p_concepts.append({"pid": str(row['uniquepid']), "type": col, "val": str(row[col])})
             for col in ['hospitaldischargestatus']:
-                if pd.notna(row.get(col)):
-                    e_concepts.append({"pid": str(row['patienthealthsystemstayid']), "type": col, "val": str(row[col])})
-            
-            # Encounter_Segment: unittype, unitstaytype, unitdischargestatus + APACHE
+                if pd.notna(row.get(col)): e_concepts.append({"pid": str(row['patienthealthsystemstayid']), "type": col, "val": str(row[col])})
             for col in ['unittype', 'unitstaytype', 'unitdischargestatus', 'apacheadmission', 'apache_dissimions']:
-                if pd.notna(row.get(col)):
-                    s_concepts.append({"pid": str(row['patientunitstayid']), "type": col, "val": str(row[col])})
+                if pd.notna(row.get(col)): s_concepts.append({"pid": str(row['patientunitstayid']), "type": col, "val": str(row[col])})
 
-        # Query di caricamento
-        if p_concepts:
-            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Patient {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=p_concepts)
-        if e_concepts:
-            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=e_concepts)
-        if s_concepts:
-            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter_Segment {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=s_concepts)
+        if p_concepts: session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Patient {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=p_concepts)
+        if e_concepts: session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=e_concepts)
+        if s_concepts: session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter_Segment {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=s_concepts)
 
 def main():
     csv_file = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
