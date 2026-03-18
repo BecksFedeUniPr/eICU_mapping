@@ -1,571 +1,166 @@
 import pandas as pd
-import json
 import numpy as np
 import os
-from collections import defaultdict
-from neo4j import GraphDatabase
+import json
 from datetime import datetime, timedelta
+from neo4j import GraphDatabase
 
-# GOAL: load patient.csv fully driven by mapping.json (nodes + relationships)
-
+# ─────────────────────────────────────────────
+# CONFIGURAZIONE DATABASE
+# ─────────────────────────────────────────────
 URI      = os.getenv("NEO4J_URI",      "neo4j://localhost:7687")
 USER     = os.getenv("NEO4J_USER",     "neo4j")
 PASSWORD = os.getenv("NEO4J_PASSWORD", "Mediverse")
 
-# ─────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────
+def clear_database(driver):
+    """Cancella TUTTI i nodi e le relazioni nel database"""
+    print("⚠️  PULIZIA DATABASE IN CORSO...")
+    with driver.session() as session:
+        # DETACH DELETE cancella i nodi e rimuove automaticamente tutte le relazioni collegate
+        session.run("MATCH (n) DETACH DELETE n")
+    print("✅ Database svuotato correttamente.")
 
-def load_mapping_config(mapping_path):
-    """Load the mapping JSON file"""
-    with open(mapping_path, 'r') as f:
-        return json.load(f)
-
-def parse_time_expr(expr, row):
-    """
-    Parse mapping time expressions like 'hospitaladmittime24 + hospitaladmitoffset'.
-    Returns ISO timestamp string or None.
-    """
-    parts = [p.strip() for p in expr.split('+')]
-    time_val   = row.get(parts[0])
-    offset_val = row.get(parts[1]) if len(parts) > 1 else 0
-    return parse_time_with_offset(time_val, offset_val)
+def setup_constraints(driver):
+    """Crea i vincoli di unicità basati sul source_reference per TUTTI i nodi"""
+    queries = [
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Patient) REQUIRE n.source_reference IS UNIQUE",
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Encounter) REQUIRE n.source_reference IS UNIQUE",
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Encounter_Segment) REQUIRE n.source_reference IS UNIQUE",
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Location) REQUIRE n.source_reference IS UNIQUE",
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Local_Concept) REQUIRE n.source_reference IS UNIQUE"
+    ]
+    with driver.session() as session:
+        for q in queries:
+            session.run(q)
+    print("✅ Vincoli di unicità impostati.")
 
 def parse_time_with_offset(time_24h, offset_minutes):
-    """
-    Calculate the correct timestamp considering offset in minutes (can be negative).
-    time_24h: string HH:MM:SS
-    offset_minutes: int or float
-    Returns: ISO timestamp string
-    """
-    if time_24h is None:
-        return None
+    if pd.isna(time_24h) or time_24h is None: return None
     try:
-        base = datetime.strptime(str(time_24h).strip(), '%H:%M:%S')
-        if offset_minutes is not None:
-            base = base + timedelta(minutes=int(offset_minutes))
-        return base.isoformat()
-    except Exception as e:
-        print(f"Error parsing time {time_24h} + offset {offset_minutes}: {e}")
-        return None
-
-def build_payload(row, field_list):
-    """Build JSON payload dict from a list of CSV field names"""
-    payload = {f: row[f] for f in field_list if f in row and row[f] is not None}
-    return json.dumps(payload) if payload else None
-
-# ─────────────────────────────────────────────
-# SOURCE REFERENCE RESOLUTION
-# ─────────────────────────────────────────────
-
-def is_derived_node(node_def):
-    """True for nodes whose source_reference is derived from column values (Local_Concept, Location)."""
-    return node_def.get('source_reference') == '__derived_from_column_value__'
-
-def get_node_source_ref(node_name, node_def, row):
-    """
-    Return a globally unique source_reference for this node type + row.
-    Returns None for derived nodes (they are created separately).
-    """
-    raw = node_def.get('source_reference', '')
-    if not raw or raw == '__derived_from_column_value__':
-        return None
-    val = row.get(raw)
-    if val is None:
-        return None
-    return f"{node_name.upper()}_{val}"
-
-# ─────────────────────────────────────────────
-# LOCAL CONCEPT NODES (Patient/Encounter columns → concept nodes)
-# ─────────────────────────────────────────────
-
-# Columns to map to Local_Concept nodes for each node type
-LOCAL_CONCEPT_COLUMNS = {
-    "Patient":           ["gender", "ethnicity"],
-    "Encounter":         ["hospitaldischargestatus", "hospitaldischargelocation"],
-    "Encounter_Segment": ["unittype", "unitadmitsource", "unitstaytype",
-                          "unitdischargelocation", "unitdischargestatus"],
-}
-
-def get_local_concept_nodes(row):
-    """
-    Build a list of {source_reference, source_value, type} dicts.
-    source_reference = LOCALCONCEPT_{column}_{value}  — one node per (category, value)
-    pair to avoid semantic aliasing (e.g. 'Alive' in discharge_status vs unit_status).
-    The category is stored as the 'type' property on the node itself.
-    """
-    nodes = {}
-    for node_type, columns in LOCAL_CONCEPT_COLUMNS.items():
-        for col in columns:
-            val = row.get(col)
-            if val is None:
-                continue
-            if isinstance(val, float) and np.isnan(val):
-                continue
-            val_str = str(val).strip()
-            if not val_str or val_str.lower() == 'nan':
-                continue
-            ref = f"LOCALCONCEPT_{col}_{val_str}"
-            if ref not in nodes:
-                nodes[ref] = {
-                    "source_reference": ref,
-                    "source_value":     val_str,
-                    "type":             col
-                }
-    return list(nodes.values())
-
-def get_local_concept_rels(node_name, node_def, row):
-    """
-    Build HAS_LOCAL_CONCEPT relationships from a node to its Local_Concept nodes.
-    The relationship carries a 'type' property = column_name.
-    """
-    src_ref = get_node_source_ref(node_name, node_def, row)
-    if not src_ref:
-        return []
-    rels = []
-    for col in LOCAL_CONCEPT_COLUMNS.get(node_name, []):
-        val = row.get(col)
-        if val is None:
-            continue
-        if isinstance(val, float) and np.isnan(val):
-            continue
-        val_str = str(val).strip()
-        if not val_str or val_str.lower() == 'nan':
-            continue
-        concept_ref = f"LOCALCONCEPT_{col}_{val_str}"
-        rels.append({
-            "from_label":  node_name,
-            "from_ref":    src_ref,
-            "to_label":    "Local_Concept",
-            "to_ref":      concept_ref,
-            "type":        "HAS_LOCAL_CONCEPT",
-            "props":       {}
-        })
-    return rels
-
-# ─────────────────────────────────────────────
-# LOCATION NODES
-#   - Hospital  : identified by hospitalid alone   → LOCATION_H_{hospitalid}
-#   - Ward      : identified by hospitalid+wardid  → LOCATION_HW_{hospitalid}_{wardid}
-# ─────────────────────────────────────────────
-
-def _safe_str(val):
-    """Return stripped string or None if val is null/nan/empty."""
-    if val is None:
-        return None
-    if isinstance(val, float) and np.isnan(val):
-        return None
-    s = str(val).strip()
-    return s if s and s.lower() != 'nan' else None
-
-def get_location_nodes(row):
-    """
-    Build Location nodes from the current row.
-      - Encounter         → hospital node  (hospitalid)
-      - Encounter_Segment → ward node      (hospitalid + wardid)
-    """
-    nodes = {}
-
-    # Hospital-level location (owned by Encounter)
-    hosp = _safe_str(row.get('hospitalid'))
-    if hosp:
-        ref = f"LOCATION_H_{hosp}"
-        if ref not in nodes:
-            nodes[ref] = {
-                "source_reference": ref,
-                "location_type":    "hospital",
-                "hospitalid":       hosp,
-            }
-
-    # Ward-level location (owned by Encounter_Segment, scoped to hospital)
-    ward = _safe_str(row.get('wardid'))
-    if hosp and ward:
-        ref = f"LOCATION_HW_{hosp}_{ward}"
-        if ref not in nodes:
-            nodes[ref] = {
-                "source_reference": ref,
-                "location_type":    "ward",
-                "hospitalid":       hosp,
-                "wardid":           ward,
-            }
-
-    return list(nodes.values())
-
-def get_location_rels(node_name, node_def, row):
-    """Build HAS_LOCATION relationships from a node to its Location nodes."""
-    src_ref = get_node_source_ref(node_name, node_def, row)
-    if not src_ref:
-        return []
-
-    hosp = _safe_str(row.get('hospitalid'))
-    ward = _safe_str(row.get('wardid'))
-    rels = []
-
-    if node_name == "Encounter" and hosp:
-        rels.append({
-            "from_label": "Encounter",
-            "from_ref":   src_ref,
-            "to_label":   "Location",
-            "to_ref":     f"LOCATION_H_{hosp}",
-            "type":       "HAS_LOCATION",
-            "props":      {}
-        })
-
-    if node_name == "Encounter_Segment" and hosp and ward:
-        rels.append({
-            "from_label": "Encounter_Segment",
-            "from_ref":   src_ref,
-            "to_label":   "Location",
-            "to_ref":     f"LOCATION_HW_{hosp}_{ward}",
-            "type":       "HAS_LOCATION",
-            "props":      {}
-        })
-
-    return rels
-
-# ─────────────────────────────────────────────
-# RELATIONSHIP PROPERTIES
-# ─────────────────────────────────────────────
-
-def resolve_rel_properties(rel_def, row):
-    """
-    Resolve the optional 'properties' block of a relationship definition.
-    Values are CSV column names whose values are fetched from the row.
-    Returns a dict (may be empty).
-    """
-    props = {}
-    for prop_key, csv_col in rel_def.get('properties', {}).items():
-        if csv_col.startswith('__'):
-            continue  # handled elsewhere
-        val = row.get(csv_col)
-        if val is not None and not (isinstance(val, float) and np.isnan(val)):
-            props[prop_key] = val
-    return props
-
-# ─────────────────────────────────────────────
-# DATA PREPARATION  (driven by mapping JSON)
-# ─────────────────────────────────────────────
-
-def load_and_prep_data(csv_path, mapping_config):
-    """
-    Read the CSV and build, for each row:
-      - one dict per node type (with source_reference, properties, payload, timestamps)
-      - one list of relationships (from_ref, to_ref, type, props)
-    Everything is driven by mapping.json.
-    """
-    print("Reading CSV file...")
-    df = pd.read_csv(csv_path)
-    df = df.replace({np.nan: None})
-
-    nodes_map = mapping_config['nodes']
-    rel_defs  = mapping_config['relationships']
-
-    print(f"Mapping: {len(nodes_map)} node types | {len(rel_defs)} relationship types")
-
-    records = []
-    skipped = 0
-
-    for _, raw_row in df.iterrows():
-        row = dict(raw_row)
-
-        # Skip rows missing any critical ID
-        if None in (row.get('uniquepid'),
-                    row.get('patienthealthsystemstayid'),
-                    row.get('patientunitstayid')):
-            skipped += 1
-            continue
-
-        record = {}
-
-        # ── Build node data from mapping ──
-        for node_name, node_def in nodes_map.items():
-            # Derived nodes (Local_Concept, Location) are built separately
-            if is_derived_node(node_def):
-                continue
-
-            src_ref = get_node_source_ref(node_name, node_def, row)
-            if src_ref is None:
-                continue
-
-            node_data = {"source_reference": src_ref}
-
-            # Timestamps
-            for t_key in ('start_time', 'end_time', 'timestamp'):
-                if t_key in node_def:
-                    node_data[t_key] = parse_time_expr(node_def[t_key], row)
-
-            # Payload
-            payload_fields = node_def.get('payload', [])
-            if payload_fields:
-                node_data['payload'] = build_payload(row, payload_fields)
-
-            # Direct property mappings (keys whose values are CSV column names)
-            skip_keys = {'source_reference', 'type', 'concept_id', 'concept_label',
-                         'payload', 'start_time', 'end_time', 'timestamp'}
-            for prop, csv_col in node_def.items():
-                if prop not in skip_keys and isinstance(csv_col, str) and csv_col in row:
-                    node_data[prop] = row[csv_col]
-
-            record[node_name] = node_data
-
-        # ── Local_Concept nodes ──
-        record['Local_Concept'] = get_local_concept_nodes(row)
-
-        # ── Location nodes ──
-        record['Location'] = get_location_nodes(row)
-
-        # ── Build relationships from mapping ──
-        rel_list = []
-        for rel in rel_defs:
-            from_name = rel['from']
-            to_name   = rel['to']
-            rel_type  = rel['type']
-            from_def  = nodes_map.get(from_name)
-            to_def    = nodes_map.get(to_name)
-            if from_def is None or to_def is None:
-                continue
-
-            # Derived nodes (Local_Concept, Location) are wired separately below
-            if is_derived_node(from_def) or is_derived_node(to_def):
-                continue
-
-            from_ref = get_node_source_ref(from_name, from_def, row)
-            to_ref   = get_node_source_ref(to_name,   to_def,   row)
-
-            if from_ref and to_ref:
-                props = resolve_rel_properties(rel, row)
-                rel_list.append({
-                    "from_label": from_name,
-                    "from_ref":   from_ref,
-                    "to_label":   to_name,
-                    "to_ref":     to_ref,
-                    "type":       rel_type,
-                    "props":      props
-                })
-
-        # ── HAS_LOCAL_CONCEPT relationships ──
-        for node_name, node_def in nodes_map.items():
-            if is_derived_node(node_def):
-                continue
-            rel_list.extend(get_local_concept_rels(node_name, node_def, row))
-
-        # ── HAS_LOCATION relationships ──
-        for node_name, node_def in nodes_map.items():
-            if is_derived_node(node_def):
-                continue
-            rel_list.extend(get_location_rels(node_name, node_def, row))
-
-        record['_relationships'] = rel_list
-        records.append(record)
-
-    if skipped:
-        print(f"[WARN] Skipped {skipped} rows with missing critical IDs")
-    return records
-
-# ─────────────────────────────────────────────
-# NEO4J WRITERS
-# ─────────────────────────────────────────────
-
-def create_nodes_tx(tx, batch, node_label):
-    """Batch-MERGE all nodes of a given label.
-    Local_Concept nodes are identified by (source_value, type); all others by source_reference.
-    """
-    seen = {}
-    for rec in batch:
-        entry = rec.get(node_label)
-        if entry is None:
-            continue
-        entries = entry if isinstance(entry, list) else [entry]
-        for node in entries:
-            if node_label == 'Local_Concept':
-                key = (node.get('source_value'), node.get('type'))
-            else:
-                key = node.get('source_reference')
-            if key and key not in seen:
-                seen[key] = node
-    node_batch = list(seen.values())
-    if not node_batch:
-        return
-    if node_label == 'Local_Concept':
-        query = """
-        UNWIND $batch AS props
-        MERGE (n:Local_Concept {source_value: props.source_value, type: props.type})
-        ON CREATE SET n += props
-        """
-    else:
-        query = f"""
-        UNWIND $batch AS props
-        MERGE (n:{node_label} {{source_reference: props.source_reference}})
-        ON CREATE SET n += props
-        """
-    tx.run(query, batch=node_batch)
-
-def create_relationships_tx(tx, batch):
-    """Batch-MERGE all relationships, grouped by (from_label, to_label, type)"""
-    all_rels = []
-    for rec in batch:
-        all_rels.extend(rec.get('_relationships', []))
-    if not all_rels:
-        return
-
-    grouped = defaultdict(list)
-    for rel in all_rels:
-        grouped[(rel['from_label'], rel['to_label'], rel['type'])].append(rel)
-
-    for (from_label, to_label, rel_type), rels in grouped.items():
-        has_props = any(r.get('props') for r in rels)
-        b_match = (
-            f"MATCH (b:Local_Concept {{source_value: rel.to_source_value, type: rel.to_type}})"
-            if to_label == 'Local_Concept'
-            else f"MATCH (b:{to_label} {{source_reference: rel.to_ref}})"
-        )
-        if has_props:
-            query = f"""
-            UNWIND $rels AS rel
-            MATCH (a:{from_label} {{source_reference: rel.from_ref}})
-            {b_match}
-            MERGE (a)-[r:{rel_type}]->(b)
-            ON CREATE SET r += rel.props
-            """
-        else:
-            query = f"""
-            UNWIND $rels AS rel
-            MATCH (a:{from_label} {{source_reference: rel.from_ref}})
-            {b_match}
-            MERGE (a)-[:{rel_type}]->(b)
-            """
-        tx.run(query, rels=rels)
-
-def setup_constraints(tx, mapping_config):
-    """Create uniqueness constraints for every node type in the mapping.
-    Derived nodes (Local_Concept, Location) are handled explicitly so that
-    their constraints survive even if they are removed from mapping.json.
-    """
-    derived = {'Local_Concept', 'Location'}
-    for node_label in mapping_config['nodes'].keys():
-        if node_label in derived:
-            continue
-        tx.run(
-            f"CREATE CONSTRAINT {node_label.lower()}_src_ref IF NOT EXISTS "
-            f"FOR (n:{node_label}) REQUIRE n.source_reference IS UNIQUE;"
-        )
-    # Derived nodes — always enforced regardless of mapping.json
-    tx.run(
-        "CREATE CONSTRAINT local_concept_value_type IF NOT EXISTS "
-        "FOR (n:Local_Concept) REQUIRE (n.source_value, n.type) IS UNIQUE;"
-    )
-    tx.run(
-        "CREATE CONSTRAINT location_src_ref IF NOT EXISTS "
-        "FOR (n:Location) REQUIRE n.source_reference IS UNIQUE;"
-    )
-
-def cleanup_stale_relationships(session, mapping_config):
-    """
-    Delete any relationship types that exist in Neo4j but are no longer
-    defined in the current mapping (stale types from previous mapping versions).
-    """
-    valid_types = {r['type'] for r in mapping_config['relationships']}
-    valid_types.update({'HAS_LOCAL_CONCEPT', 'HAS_LOCATION'})
-
-    existing = session.run(
-        "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
-    ).data()
-    existing_types = {r['relationshipType'] for r in existing}
-
-    stale = existing_types - valid_types
-    if not stale:
-        print("[OK] No stale relationship types found")
-        return
-
-    for rel_type in stale:
-        print(f"  [DEL] Removing stale relationship type: {rel_type}")
-        session.run(f"MATCH ()-[r:`{rel_type}`]->() DELETE r")
-    print(f"[OK] Removed {len(stale)} stale relationship type(s): {stale}")
-
-
-def cleanup_stale_nodes(session, mapping_config):
-    """
-    Delete any nodes whose label is no longer defined in the current mapping.
-    Also drops the now-orphan uniqueness constraints for those labels.
-    """
-    valid_labels = set(mapping_config['nodes'].keys())
-    valid_labels.update({'Local_Concept', 'Location'})
-
-    existing = session.run(
-        "CALL db.labels() YIELD label RETURN label"
-    ).data()
-    existing_labels = {r['label'] for r in existing}
-
-    stale = existing_labels - valid_labels
-    if not stale:
-        print("[OK] No stale node labels found")
-        return
-
-    for label in stale:
-        print(f"Removing stale nodes with label: {label}")
-        session.run(f"MATCH (n:`{label}`) DETACH DELETE n")
-        # Drop the constraint if it exists
+        t_str = str(time_24h).strip()
+        # Prova con i secondi, se fallisce prova senza
         try:
-            session.run(
-                f"DROP CONSTRAINT {label.lower()}_src_ref IF EXISTS"
-            )
-        except Exception:
-            pass
-    print(f"[OK] Removed {len(stale)} stale node label(s): {stale}")
+            base = datetime.strptime(t_str, '%H:%M:%S')
+        except ValueError:
+            base = datetime.strptime(t_str, '%H:%M')
+        if pd.notna(offset_minutes) and offset_minutes is not None:
+            base = base + timedelta(minutes=int(float(offset_minutes)))
+        return base.isoformat()
+    except: 
+        return None
 
+def process_batch(driver, batch):
+    """Esegue le query Cypher per un singolo blocco di dati"""
+    
+    # --- PREPARAZIONE JSON E TEMPO ---
+    for row in batch:
+        payload_enc = {
+            "admissionheight": row.get("admissionheight"),
+            "hospitaldischargeyear": row.get("hospitaldischargeyear"),
+            "admissionweight": row.get("admissionweight"),
+            "dischargeweight": row.get("dischargeweight")
+        }
+        payload_seg = {"unitvisitnumber": row.get("unitvisitnumber")}
+        
+        row['payload_encounter'] = json.dumps(payload_enc)
+        row['payload_segment'] = json.dumps(payload_seg)
+        row['enc_start_time'] = parse_time_with_offset(row.get('hospitaladmittime24'), row.get('hospitaladmitoffset'))
+        row['enc_end_time'] = parse_time_with_offset(row.get('hospitaldischargetime24'), row.get('hospitaldischargeoffset'))
+        row['seg_start_time'] = parse_time_with_offset(row.get('unit_admit_time'), 0)
+        row['seg_end_time'] = parse_time_with_offset(row.get('unitdischargetime24'), row.get('unitdischargeoffset'))
 
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
+    with driver.session() as session:
+        
+        # ==========================================
+        # FASE 1: LA BACKBONE
+        # ==========================================
+        session.run("""
+            UNWIND $batch AS row
+            MERGE (p:Patient {source_reference: toString(row.uniquepid)})
+            SET p.age = row.age
+            
+            MERGE (e:Encounter {source_reference: toString(row.patienthealthsystemstayid)})
+            SET e.type = 'Encounter', e.concept_label = null, e.concept_id = null,
+                e.start_time = row.enc_start_time, e.end_time = row.enc_end_time,
+                e.payload = row.payload_encounter
+                
+            MERGE (s:Encounter_Segment {source_reference: toString(row.patientunitstayid)})
+            SET s.type = 'Encounter Segment', s.concept_label = null, s.concept_id = null,
+                s.start_time = row.seg_start_time, s.end_time = row.seg_end_time,
+                s.payload = row.payload_segment
+                
+            MERGE (p)-[:HAS_EVENT]->(e)
+            MERGE (e)-[:HAS_EVENT]->(s)
+            MERGE (p)-[:HAS_EVENT]->(s)
+        """, batch=batch)
+
+        # ==========================================
+        # FASE 2: LOCATION & RICH EDGES
+        # ==========================================
+        session.run("""
+            UNWIND $batch AS row
+            WITH row WHERE row.hospitalid IS NOT NULL
+            MATCH (e:Encounter {source_reference: toString(row.patienthealthsystemstayid)})
+            MERGE (loc_h:Location {source_reference: 'HOSP_' + toString(row.hospitalid)})
+            MERGE (e)-[r_h:HAS_LOCATION]->(loc_h)
+            SET r_h.source = row.hospitaladmitsource, 
+                r_h.dismission = row.hospitaldischargelocation
+            
+            WITH row, e
+            WHERE row.wardid IS NOT NULL
+            MATCH (s:Encounter_Segment {source_reference: toString(row.patientunitstayid)})
+            MERGE (loc_w:Location {source_reference: 'HOSP_' + toString(row.hospitalid) + '_WARD_' + toString(row.wardid)})
+            MERGE (s)-[r_w:HAS_LOCATION]->(loc_w)
+            SET r_w.source = row.unitadmitsource, 
+                r_w.dismission = row.unitdischargelocation
+        """, batch=batch)
+
+        # ==========================================
+        # FASE 3: LOCAL CONCEPTS (Aggiornata!)
+        # ==========================================
+        p_concepts = []
+        e_concepts = []
+        s_concepts = []
+
+        for row in batch:
+            # Patient: gender, ethnicity
+            for col in ['gender', 'ethnicity']:
+                if pd.notna(row.get(col)):
+                    p_concepts.append({"pid": str(row['uniquepid']), "type": col, "val": str(row[col])})
+            
+            # Encounter: hospitaldischargestatus
+            for col in ['hospitaldischargestatus']:
+                if pd.notna(row.get(col)):
+                    e_concepts.append({"pid": str(row['patienthealthsystemstayid']), "type": col, "val": str(row[col])})
+            
+            # Encounter_Segment: unittype, unitstaytype, unitdischargestatus + APACHE
+            for col in ['unittype', 'unitstaytype', 'unitdischargestatus', 'apacheadmission', 'apache_dissimions']:
+                if pd.notna(row.get(col)):
+                    s_concepts.append({"pid": str(row['patientunitstayid']), "type": col, "val": str(row[col])})
+
+        # Query di caricamento
+        if p_concepts:
+            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Patient {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=p_concepts)
+        if e_concepts:
+            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=e_concepts)
+        if s_concepts:
+            session.run("UNWIND $c AS c MERGE (n:Local_Concept {source_reference: c.val}) WITH c,n MATCH (p:Encounter_Segment {source_reference: c.pid}) MERGE (p)-[r:HAS_LOCAL_CONCEPT]->(n) SET r.type = c.type", c=s_concepts)
+
+def main():
+    csv_file = os.getenv("CSV_FILE", "neo4j/import/patient.csv")
+    df = pd.read_csv(csv_file, dtype=str).replace({np.nan: None})
+    records = df.to_dict('records')
+    driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
+    try:
+        clear_database(driver)
+        setup_constraints(driver)
+        BATCH_SIZE = 5000
+        for i in range(0, len(records), BATCH_SIZE):
+            process_batch(driver, records[i:i + BATCH_SIZE])
+            print(f"⚙️ Processate {min(i + BATCH_SIZE, len(records))} righe...")
+    finally:
+        driver.close()
+        print("🏁 Caricamento completato!")
 
 if __name__ == "__main__":
-    csv_file     = os.getenv("CSV_FILE",     "/data/patient.csv")
-    mapping_file = os.getenv("MAPPING_FILE", "mapping.json")
-
-    mapping_config = load_mapping_config(mapping_file)
-    print(f"Loaded mapping : {mapping_config['mapping_metadata']}")
-    print(f"Node types     : {list(mapping_config['nodes'].keys())}")
-    print(f"Relationships  : {[r['type'] for r in mapping_config['relationships']]}")
-
-    data       = load_and_prep_data(csv_file, mapping_config)
-    total_rows = len(data)
-    print(f"Records ready  : {total_rows}")
-
-    BATCH_SIZE  = 5000
-    # All node labels to write (mapping-defined + derived)
-    node_labels = list(mapping_config['nodes'].keys()) + ["Local_Concept", "Location"]
-    # Remove duplicates while preserving order
-    seen_labels: set = set()
-    unique_labels = []
-    for lbl in node_labels:
-        if lbl not in seen_labels:
-            seen_labels.add(lbl)
-            unique_labels.append(lbl)
-    node_labels = unique_labels
-
-    driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
-    with driver.session() as session:
-
-        print("Cleaning up stale node labels...")
-        cleanup_stale_nodes(session, mapping_config)
-
-        print("Cleaning up stale relationship types...")
-        cleanup_stale_relationships(session, mapping_config)
-
-        session.execute_write(setup_constraints, mapping_config)
-        print("Constraints created")
-
-        for i in range(0, total_rows, BATCH_SIZE):
-            chunk = data[i: i + BATCH_SIZE]
-
-            # 1. Create all node types (including Local_Concept + Location)
-            for label in node_labels:
-                session.execute_write(create_nodes_tx, chunk, label)
-
-            # 2. Create all relationships
-            session.execute_write(create_relationships_tx, chunk)
-
-            print(f"Processed {min(i + BATCH_SIZE, total_rows)}/{total_rows} rows")
-
-    driver.close()
-    print("Done! Graph fully loaded from mapping.json")
+    main()

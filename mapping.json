@@ -11,20 +11,14 @@
             "age": "age"
         },
         "Local_Concept": {
-            "source_reference": "__derived_from_column_value__",
-            "identity_key": ["source_value", "type"],
-            "properties": {
-                "source_value": "__column_value__",
-                "type": "__column_name__"
-            },
-            "_comment": "Uniqueness is enforced on the composite key (source_value, type). Each distinct (value, category) pair is one node."
+            "source_reference": ["gender","ethnicity","hospitaldischargestatus","unittype","unitstaytype","unitdischargestatus"]
         },
         "Encounter": {
             "source_reference": "patienthealthsystemstayid",
             "type": "Encounter",
             "concept_label": null,
             "concept_id": null,
-            "start_time": "hospitaladmittime24 + hospitaladmitoffset",
+            "start_time": "hospitaladmttime24 + hospitaladmitoffset",
             "end_time": "hospitaldischargetime24 + hospitaldischargeoffset",
             "payload": [
                 "admissionheight",
@@ -38,7 +32,7 @@
             "type": "Encounter Segment",
             "concept_label": null,
             "concept_id": null,
-            "start_time": "unitadmittime24",
+            "start_time": "unit_admit_time",
             "end_time": "unitdischargetime24 + unitdischargeoffset",
             "payload": ["unitvisitnumber"]
         },
@@ -56,7 +50,7 @@
         {
             "from": "Patient",
             "to": "Encounter_Segment",
-            "type": "HAS_ENCOUNTER_SEGMENT",
+            "type": "HAS_EVENT",
             "join_key": {
                 "from_field": "uniquepid",
                 "to_field": "patientunitstayid"
@@ -81,34 +75,30 @@
             "join_key": {
                 "from_field": "uniquepid",
                 "to_field": "patienthealthsystemstayid"
-            },
-            "properties": {
-                "source": "unitadmitsource",
-                "dismission": "unitdischargelocation"
             }
         },
         {
             "from": "Encounter",
             "to": "Encounter_Segment",
-            "type": "HAS_ENCOUNTER_SEGMENT",
+            "type": "HAS_EVENT",
             "join_key": {
                 "from_field": "patienthealthsystemstayid",
                 "to_field": "patientunitstayid"
-            },
-            "properties": {
-                "source": "unitadmitsource",
-                "dismission": "unitdischargelocation"
             }
         },
         {
             "from": "Encounter",
             "to": "Location",
-            "type": "HAS_LOCATION"
+            "type": "HAS_LOCATION",
+                "source": "hospitaladmitsource",
+                "dismission": "hospitaldischargelocation"
         },
         {
             "from": "Encounter_Segment",
             "to": "Location",
-            "type": "HAS_LOCATION"
+            "type": "HAS_LOCATION",
+                "source": "unitadmitsource",
+                "dismission": "unitdischargelocation"
         }
     ]
 }
