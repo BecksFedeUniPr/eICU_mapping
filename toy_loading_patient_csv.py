@@ -25,7 +25,7 @@ def setup_constraints(driver):
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Patient) REQUIRE n.source_reference IS UNIQUE",
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Encounter) REQUIRE n.source_reference IS UNIQUE",
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Encounter_Segment) REQUIRE n.source_reference IS UNIQUE",
-        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Location) REQUIRE n.source_reference IS UNIQUE",
+        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Location) REQUIRE n.value IS UNIQUE",
         "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Local_Concept) REQUIRE n.source_reference IS UNIQUE"
     ]
     with driver.session() as session:
