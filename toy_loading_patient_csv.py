@@ -96,23 +96,37 @@ def process_batch(driver, batch):
             MERGE (p)-[:HAS_EVENT]->(s)
         """, batch=batch)
 
-        # FASE 2: LOCATION & RICH EDGES
         session.run("""
             UNWIND $batch AS row
-            WITH row WHERE row.hospitalid IS NOT NULL
             MATCH (e:Encounter {source_reference: toString(row.patienthealthsystemstayid)})
-            MERGE (loc_h:Location {source_reference: 'HOSP_' + toString(row.hospitalid)})
-            MERGE (e)-[r_h:HAS_LOCATION]->(loc_h)
-            SET r_h.source = row.hospitaladmitsource, 
-                r_h.dismission = row.hospitaldischargelocation
             
-            WITH row, e
-            WHERE row.wardid IS NOT NULL
-            MATCH (s:Encounter_Segment {source_reference: toString(row.patientunitstayid)})
-            MERGE (loc_w:Location {source_reference: 'HOSP_' + toString(row.hospitalid) + '_WARD_' + toString(row.wardid)})
-            MERGE (s)-[r_w:HAS_LOCATION]->(loc_w)
-            SET r_w.source = row.unitadmitsource, 
-                r_w.dismission = row.unitdischargelocation
+            // 1. Hospital Admit Source
+            FOREACH (_ IN CASE WHEN row.hospitaladmitsource IS NOT NULL THEN [1] ELSE [] END |
+                MERGE (ha:Location {value: row.hospitaladmitsource})
+                MERGE (e)-[r:HAS_LOCATION]->(ha)
+                SET r.source = "hospitaladmitsource"
+            )
+            
+            // 2. Hospital Discharge Location
+            FOREACH (_ IN CASE WHEN row.hospitaldischargelocation IS NOT NULL THEN [1] ELSE [] END |
+                MERGE (hd:Location {value: row.hospitaldischargelocation})
+                MERGE (e)-[r:HAS_LOCATION]->(hd)
+                SET r.source = "hospitaldischargelocation"
+            )
+            
+            // 3. Unit Admit Source
+            FOREACH (_ IN CASE WHEN row.unitadmitsource IS NOT NULL THEN [1] ELSE [] END |
+                MERGE (ua:Location {value: row.unitadmitsource})
+                MERGE (e)-[r:HAS_LOCATION]->(ua)
+                SET r.source = "unitadmitsource"
+            )
+            
+            // 4. Unit Discharge Location
+            FOREACH (_ IN CASE WHEN row.unitdischargelocation IS NOT NULL THEN [1] ELSE [] END |
+                MERGE (ud:Location {value: row.unitdischargelocation})
+                MERGE (e)-[r:HAS_LOCATION]->(ud)
+                SET r.source = "unitdischargelocation"
+            )
         """, batch=batch)
 
         # FASE 3: LOCAL CONCEPTS

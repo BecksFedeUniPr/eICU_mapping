@@ -37,16 +37,10 @@
             "payload": ["unitvisitnumber"]
         },
         "Location": {
-            "source_reference": "__derived_from_column_value__"
+            "value": "__derived_from_column_value__"
         }
     },
     "relationships": [
-        {
-            "from": "Patient",
-            "to": "Local_Concept",
-            "type": "HAS_LOCAL_CONCEPT",
-            "properties": { "type": "__column_name__" }
-        },
         {
             "from": "Patient",
             "to": "Encounter_Segment",
@@ -55,18 +49,6 @@
                 "from_field": "uniquepid",
                 "to_field": "patientunitstayid"
             }
-        },
-        {
-            "from": "Encounter",
-            "to": "Local_Concept",
-            "type": "HAS_LOCAL_CONCEPT",
-            "properties": { "type": "__column_name__" }
-        },
-        {
-            "from": "Encounter_Segment",
-            "to": "Local_Concept",
-            "type": "HAS_LOCAL_CONCEPT",
-            "properties": { "type": "__column_name__" }
         },
         {
             "from": "Patient",
@@ -90,15 +72,25 @@
             "from": "Encounter",
             "to": "Location",
             "type": "HAS_LOCATION",
-                "source": "hospitaladmitsource",
-                "dismission": "hospitaldischargelocation"
+            "colum_name": "__column_name__"
         },
         {
             "from": "Encounter_Segment",
             "to": "Location",
             "type": "HAS_LOCATION",
-                "source": "unitadmitsource",
-                "dismission": "unitdischargelocation"
+            "colum_name": "__column_name__"
+        },
+        {
+            "from": "Encounter_Segment",
+            "to": "Local_Concept",
+            "type": "HAS_LOCAL_CONCEPT",
+            "properties": { "type": "__column_name__" }
+        },
+                {
+            "from": "Patient",
+            "to": "Local_Concept",
+            "type": "HAS_LOCAL_CONCEPT",
+            "properties": { "type": "__column_name__" }
         }
     ]
 }

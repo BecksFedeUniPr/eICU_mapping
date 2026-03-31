@@ -64,8 +64,8 @@ Encounter --> Local_Concept : HAS_LOCAL_CONCEPT[type]
 Encounter_Segment --> Local_Concept : HAS_LOCAL_CONCEPT[type]
 Patient --> Encounter : HAS_EVENT
 Encounter --> Encounter_Segment : HAS_EVENT
-Encounter --> Location : HAS_LOCATION[source, dismission]
-Encounter_Segment --> Location : HAS_LOCATION[source, dismission]
+Encounter --> Location : HAS_LOCATION[source="column_name"]
+Encounter_Segment --> Location : HAS_LOCATION[source="column_name"]
 ```
 
 ---
